@@ -1,0 +1,22 @@
+build { core init lib/ld snapper }
+create_boot_directory
+install_config {
+ <config>
+   <parent-provides>
+     <service name="LOG"/>
+     <service name="PD"/>
+     <service name="CPU"/>
+     <service name="ROM"/>
+   </parent-provides>
+   <default-route>
+     <any-service> <parent/> </any-service>
+   </default-route>
+   <default caps="100"/>
+   <start name="snapper">
+     <resource name="RAM" quantum="10M"/>
+   </start>
+ </config>
+}
+build_boot_image [build_artifacts]
+append qemu_args "-nographic -m 64"
+run_genode_until {snapper exit.*\n} 10
