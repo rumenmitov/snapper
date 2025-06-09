@@ -1,0 +1,66 @@
+#+title: Snapper 2.0 - Roadmap
+#+author: Rumen Mitov
+#+email: rumen.mitov@pconstructor.tech
+#+date: \today
+#+options: toc:nil prop:t p:t pri:t
+
+
+* TODO [#A] Setup Snapper Project
+DEADLINE: <2025-06-16 Mon>
+:PROPERTIES:
+:Effort:   4
+:END:
+- [X] Create run file and Makefile
+- [ ] +Use Goa as a build tool+
+- [ ] Define data structures and ~Snapper~ object.
+
+* TODO [#C] Unit Tests
+DEADLINE: <2025-06-16 Mon>
+:PROPERTIES:
+:Effort:   4
+:END:
+- [ ] Snapshot creation
+- [ ] Snapshot successful recovery
+- [ ] Snapshot unsuccessful recovery
+- [ ] Snapshot purge
+
+* TODO [#B] Snapshot Creation
+DEADLINE: <2025-06-16 Mon>
+:PROPERTIES:
+:Effort:   10
+:END:
+* TODO [#B] Snapshot Recovery
+DEADLINE: <2025-06-23 Mon>
+:PROPERTIES:
+:Effort:   10
+:END:
+* TODO [#C] Snapshot Purge
+DEADLINE: <2025-06-23 Mon>
+:PROPERTIES:
+:Effort:   10
+:END:
+* TODO [#C] XML Configuration Support
+DEADLINE: <2025-06-30 Mon>
+:PROPERTIES:
+:Effort:   5
+:END:
+- [ ] SNAPPER_ROOT
+- [ ] SNAPPER_THRESH
+- [ ] SNAPPER_INEGR
+- [ ] SNAPPER_REDUND
+- [ ] Retention::MAX_SNAPS
+- [ ] Retention::EXPIRATION
+
+* TODO [#C] Integration Into PhantomOS
+DEADLINE: <2025-06-30 Mon>
+:PROPERTIES:
+:Effort:   10
+:END:
+* TODO [#C] PhantomOS Snapshot Tests
+DEADLINE: <2025-07-07 Mon>
+:PROPERTIES:
+:Effort:   5
+:END:
+- [ ] Snapshot creation
+- [ ] Snapshot recovery
+- [ ] Snapshot purge

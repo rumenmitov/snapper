@@ -1,0 +1,24 @@
+#+title: Snapper 2.0
+#+author: Rumen Mitov
+#+email: rumen.mitov@constructor.university
+
+Snapper 2.0 (henceforth known as just Snapper) is a snapshot mechanism for the virtual memory space of the persistent operating system PhantomOS. It uses the a logging file system (e.g. ext4) to ensure that file operations (e.g. modification or deletion) are resistant to OS crashes mid-way through the operation.
+
+A vital property of Snapper is that it needs to be disk space efficient in order not to bloat the file system. This is done by utilizing a mapping from the virtual pages (from now on referred only as pages) to a file containing their contents. Thus if a page remains unchanged its contents will still be mapped to a file from a previous snapshot, hence no new file needs to be created.
+
+* Configuration of Snapper
+:properties:
+:custom_id: configuration
+:end:
+Snapper should be configurable through Genode's XML. Here are the configuration options it will support:
+
+#+ATTR_LATEX: :environment longtable :align l|c|p{7cm}
+| <l>                   |     <c>      |                                                                                               <r50> |
+| OPTION                |     TYPE     |                                                                                         DESCRIPTION |
+|-----------------------+--------------+-----------------------------------------------------------------------------------------------------|
+| SNAPPER_ROOT          |    ~string~    |                                                           The path of the _<snapper-root>_ directory. |
+| SNAPPER_THRESH        | ~unsigned int~ |                                                    The number of files in a _snapshot_ sub-directory. |
+| SNAPPER_INTEGR        |     ~bool~     |                      If true, crash the system on failed integrity checks, otherwise log a warning. |
+| SNAPPER_REDUND        | ~unsigned int~ | After reaching this reference count, a redundant file copy will be created for subsequent snapshot. |
+| Retention::MAX_SNAPS  | ~unsigned int~ |                                     The maximum number of complete snapshots inside _<snapper-root>_. |
+| Retention::EXPIRATION |     TBD      |                                                                 How long a snapshot should be kept. |
