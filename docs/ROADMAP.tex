@@ -1,0 +1,100 @@
+% Created 2025-06-09 Mon 09:28
+% Intended LaTeX compiler: pdflatex
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{wrapfig}
+\usepackage{rotating}
+\usepackage[normalem]{ulem}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{capt-of}
+\usepackage{hyperref}
+\author{Rumen Mitov}
+\date{\today}
+\title{Snapper 2.0 - Roadmap}
+\hypersetup{
+ pdfauthor={Rumen Mitov},
+ pdftitle={Snapper 2.0 - Roadmap},
+ pdfkeywords={},
+ pdfsubject={},
+ pdfcreator={Emacs 30.1 (Org mode 9.7.11)}, 
+ pdflang={English}}
+\begin{document}
+
+\maketitle
+\section{{\bfseries\sffamily TODO} \framebox{\#A} Setup Snapper Project}
+\label{sec:orgc52fb17}
+\noindent\textbf{DEADLINE:} \textit{<2025-06-16 Mon>}\\
+\begin{verbatim}
+Effort: 4
+\end{verbatim}
+\begin{itemize}
+\item[{$\boxtimes$}] Create run file and Makefile
+\item[{$\square$}] \sout{Use Goa as a build tool}
+\item[{$\square$}] Define data structures and \texttt{Snapper} object.
+\end{itemize}
+\section{{\bfseries\sffamily TODO} \framebox{\#C} Unit Tests}
+\label{sec:org3dcc74b}
+\noindent\textbf{DEADLINE:} \textit{<2025-06-16 Mon>}\\
+\begin{verbatim}
+Effort: 4
+\end{verbatim}
+\begin{itemize}
+\item[{$\square$}] Snapshot creation
+\item[{$\square$}] Snapshot successful recovery
+\item[{$\square$}] Snapshot unsuccessful recovery
+\item[{$\square$}] Snapshot purge
+\end{itemize}
+\section{{\bfseries\sffamily TODO} \framebox{\#B} Snapshot Creation}
+\label{sec:org85f5831}
+\noindent\textbf{DEADLINE:} \textit{<2025-06-16 Mon>}\\
+\begin{verbatim}
+Effort: 10
+\end{verbatim}
+\section{{\bfseries\sffamily TODO} \framebox{\#B} Snapshot Recovery}
+\label{sec:orgabc51e4}
+\noindent\textbf{DEADLINE:} \textit{<2025-06-23 Mon>}\\
+\begin{verbatim}
+Effort: 10
+\end{verbatim}
+\section{{\bfseries\sffamily TODO} \framebox{\#C} Snapshot Purge}
+\label{sec:org24e681a}
+\noindent\textbf{DEADLINE:} \textit{<2025-06-23 Mon>}\\
+\begin{verbatim}
+Effort: 10
+\end{verbatim}
+\section{{\bfseries\sffamily TODO} \framebox{\#C} XML Configuration Support}
+\label{sec:org406ed11}
+\noindent\textbf{DEADLINE:} \textit{<2025-06-30 Mon>}\\
+\begin{verbatim}
+Effort: 5
+\end{verbatim}
+\begin{itemize}
+\item[{$\square$}] SNAPPER\_ROOT
+\item[{$\square$}] SNAPPER\_THRESH
+\item[{$\square$}] SNAPPER\_INEGR
+\item[{$\square$}] SNAPPER\_REDUND
+\item[{$\square$}] Retention::MAX\_SNAPS
+\item[{$\square$}] Retention::EXPIRATION
+\end{itemize}
+\section{{\bfseries\sffamily TODO} \framebox{\#C} Integration Into PhantomOS}
+\label{sec:org019047f}
+\noindent\textbf{DEADLINE:} \textit{<2025-06-30 Mon>}\\
+\begin{verbatim}
+Effort: 10
+\end{verbatim}
+\section{{\bfseries\sffamily TODO} \framebox{\#C} PhantomOS Snapshot Tests}
+\label{sec:org05461c8}
+\noindent\textbf{DEADLINE:} \textit{<2025-07-07 Mon>}\\
+\begin{verbatim}
+Effort: 5
+\end{verbatim}
+\begin{itemize}
+\item[{$\square$}] Snapshot creation
+\item[{$\square$}] Snapshot recovery
+\item[{$\square$}] Snapshot purge
+\end{itemize}
+\end{document}
