@@ -1,4 +1,4 @@
-% Created 2025-06-09 Mon 09:28
+% Created 2025-06-09 Mon 10:52
 % Intended LaTeX compiler: pdflatex
 \documentclass[11pt]{article}
 \usepackage[utf8]{inputenc}
@@ -26,7 +26,7 @@
 
 \maketitle
 \section{{\bfseries\sffamily TODO} \framebox{\#A} Setup Snapper Project}
-\label{sec:orgc52fb17}
+\label{sec:org02254b2}
 \noindent\textbf{DEADLINE:} \textit{<2025-06-16 Mon>}\\
 \begin{verbatim}
 Effort: 4
@@ -37,37 +37,139 @@ Effort: 4
 \item[{$\square$}] Define data structures and \texttt{Snapper} object.
 \end{itemize}
 \section{{\bfseries\sffamily TODO} \framebox{\#C} Unit Tests}
-\label{sec:org3dcc74b}
+\label{sec:orga2cb21b}
 \noindent\textbf{DEADLINE:} \textit{<2025-06-16 Mon>}\\
 \begin{verbatim}
 Effort: 4
 \end{verbatim}
-\begin{itemize}
-\item[{$\square$}] Snapshot creation
-\item[{$\square$}] Snapshot successful recovery
-\item[{$\square$}] Snapshot unsuccessful recovery
-\item[{$\square$}] Snapshot purge
-\end{itemize}
+The following unit tests simulate the virtual address space via a linked-list.
+\subsection{{\bfseries\sffamily TODO} Snapshot creation}
+\label{sec:org138ba3c}
+\begin{enumerate}
+\item Create a linked list of 1000 elements containing random integers.
+\item Create a snapshot of the linked list.
+\item If test is successful, there should be 1000 files in the \uline{snapshot} directory of the generation.
+\end{enumerate}
+\subsection{{\bfseries\sffamily TODO} Snapshot successful recovery}
+\label{sec:org0a97a78}
+\subsubsection{Test \#1}
+\label{sec:org0a721d8}
+Note, this test requires a compressed archive of a generation storing integers in the range from 1 to 1000 in increasing order. The archive should be uncompressed before the test is ran, and the uncompressed files should be deleted after the test finishes.
+
+\begin{enumerate}
+\item Create an empty linked-list.
+\item Recover each file from the generation into an element in the linked-list.
+\item If test is successful, the linked-list should store all numbers from 1 to 1000 in ascending order.
+\end{enumerate}
+\subsubsection{Test \#2}
+\label{sec:org6a8744d}
+Note, this test requires a compressed archive containing two generations: one invalid, the second invalid. Both generations are snapshots of a linked-list containing all integers from 1 to 1000 in increasing order. However, the older, invalid one contains some files that are needed by the valid generation. 
+
+\begin{enumerate}
+\item Create an empty linked-list.
+\item Recover each file from the valid generation into an element in the linked-list.
+\item If test is successful, the linked-list should store all numbers from 1 to 1000 in ascending order.
+\end{enumerate}
+\subsubsection{Test \#3}
+\label{sec:orgae226a1}
+Note, this test requires a compressed archive containing a generation and an incomplete snapshot named "current". The generation should store integers in the range from 1 to 1000 in increasing order.
+\begin{enumerate}
+\item Create an empty linked-list.
+\item Recover each file from the generation into an element in the linked-list.
+\item If test is successful, the linked-list should store all numbers from 1 to 1000 in ascending order and the "current" directory should have been removed.
+\end{enumerate}
+\subsection{{\bfseries\sffamily TODO} Snapshot unsuccessful recovery}
+\label{sec:orgb130d74}
+Note, this test requires a compressed archive of a generation whose archive file has an invalid CRC. 
+
+\begin{enumerate}
+\item Try to recover the generation.
+\item If test is successful, the recovery should not be possible and an error should be written stating that the archive file is invalid.
+\end{enumerate}
+\subsection{{\bfseries\sffamily TODO} Snapshot purge}
+\label{sec:orgce3a4a9}
+Note, this test requires a compressed archive of two valid generations. Both generations are snapshots of a linked-list containing all integers from 1 to 1000 in increasing order. However, the older one contains some files that are needed by the valid generation. 
+
+\begin{enumerate}
+\item Purge the older generation.
+\item Create an empty linked-list.
+\item Trying to recover from the older generation should be unsuccessful.
+\item Recover each file from the non-purged generation into an element in the linked-list.
+\item If test is successful, the linked-list should store all numbers from 1 to 1000 in ascending order.
+\end{enumerate}
 \section{{\bfseries\sffamily TODO} \framebox{\#B} Snapshot Creation}
-\label{sec:org85f5831}
+\label{sec:org306c947}
 \noindent\textbf{DEADLINE:} \textit{<2025-06-16 Mon>}\\
 \begin{verbatim}
 Effort: 10
 \end{verbatim}
+\begin{enumerate}
+\item Delete any unfinished snapshot generation called "current".
+\item Initialize a new generation directory called "current".
+\item Within the generation directory create the archive file and the snapshot directory.
+\item Check if there is a valid prior generation (based on the timestamps). If there is, load the archive file's data into the \texttt{Snapper::Archiver} array.
+\item Let h\textsubscript{i} := \texttt{Snapper::Archiver[i]}. If \texttt{Snapper::Archiver[i]} contains redundant files, use the \emph{first file} before the comma.
+\item For each virtual page where the CRC of the file h\textsubscript{i} does not match the CRC of page (or h\textsubscript{i} does not exist):
+\begin{enumerate}
+\item Create new file, h\textsubscript{j}, and save the binary contents of the page into this new file.
+\item Initialize the snapshot file with the new CRC of the data, a reference count of 1, and the binary data of the page.
+\item Update \texttt{Snapper::Archiver[i]} \(\gets\) \emph{path(} h\textsubscript{j} \emph{)}, there \emph{path()} is the path relative to \uline{<snapper-root>}.
+\end{enumerate}
+\item For each virtual page where CRC of the file h\textsubscript{i} matches the CRC of the page:
+\begin{enumerate}
+\item If the file h\textsubscript{i} has a reference count greater than or equal to \textbf{SNAPPER\_REDUND}:
+\begin{enumerate}
+\item Create a new file h\textsubscript{j} as outlined in Step 6.
+\item Increment the reference count for all files in \texttt{Snapper::Archiver[i]}.
+\item Update \texttt{Snapper::Archiver[i]} \(\gets\) (\emph{path(} h\textsubscript{j} \emph{)} || ',' || \texttt{Snapper::Archiver[i]}) - i.e. prepend the new file path, separated by a comma, to the string containing the redundant file copies.
+\end{enumerate}
+\item If the file h\textsubscript{i} has a reference count lower than \textbf{SNAPPER\_REDUND}, increment the reference count of it and all other redundant files in \texttt{Snapper::Archiver[i]}.
+\end{enumerate}
+\item Save \texttt{Snapper::Archiver} into the archive file and calculate its CRC.
+\item Rename "current" to the current UNIX timestamp to signify that the generation is complete.
+\end{enumerate}
 \section{{\bfseries\sffamily TODO} \framebox{\#B} Snapshot Recovery}
-\label{sec:orgabc51e4}
+\label{sec:orgb74ba94}
 \noindent\textbf{DEADLINE:} \textit{<2025-06-23 Mon>}\\
 \begin{verbatim}
 Effort: 10
 \end{verbatim}
+\begin{enumerate}
+\item Choose a generation to boot from (by default the latest one).
+\item Check if the generation is valid (i.e. has an archive file with a valid CRC). If not, recovery is not possible.
+\item Load the archive file of the latest valid generation into \texttt{Snapper::Archiver}.
+\item For each h \(\in\) \texttt{Snapper::Archiver} and for each redundant file, h\textsubscript{i} \(\in\) h:
+\begin{enumerate}
+\item Check the CRC with the stored data.
+\item If h\textsubscript{i} does not exist or there is a mismatch with the CRC, try the next redundant file.
+\item If there are no more redundant files to check, respond according to the configured policy.
+\item If the CRC matches h\textsubscript{i}, load the data of h\textsubscript{i} into the corresponding page.
+\end{enumerate}
+\end{enumerate}
 \section{{\bfseries\sffamily TODO} \framebox{\#C} Snapshot Purge}
-\label{sec:org24e681a}
+\label{sec:orga64aeb8}
 \noindent\textbf{DEADLINE:} \textit{<2025-06-23 Mon>}\\
 \begin{verbatim}
 Effort: 10
 \end{verbatim}
+Note, that when a file's reference count is decremented to 0, the file is removed. If a directory becomes empty as a result, it is removed.
+
+\begin{enumerate}
+\item Make sure the generation is valid (i.e. it has an archive file with a valid CRC).
+\item If the archive file has an invalid CRC:
+\begin{enumerate}
+\item If \textbf{SNAPPER\_INTEGR} is set to true, crash the system and ask the system administrator to replace the generation's corrupted archive file with a backup copy.
+\item Otherwise, log an error message and boot the system into a clean state.
+\end{enumerate}
+\item If the archive file has a valid CRC:
+\begin{enumerate}
+\item Load the archive file into \texttt{Snapper::Archiver}.
+\item For each entry h \(\in\) \texttt{Snapper::Archiver} and for each file h\textsubscript{i} \(\in\) h: decrement the file h\textsubscript{i}'s reference count.
+\item Delete the archive file.
+\end{enumerate}
+\end{enumerate}
 \section{{\bfseries\sffamily TODO} \framebox{\#C} XML Configuration Support}
-\label{sec:org406ed11}
+\label{sec:org0d4afce}
 \noindent\textbf{DEADLINE:} \textit{<2025-06-30 Mon>}\\
 \begin{verbatim}
 Effort: 5
@@ -81,13 +183,13 @@ Effort: 5
 \item[{$\square$}] Retention::EXPIRATION
 \end{itemize}
 \section{{\bfseries\sffamily TODO} \framebox{\#C} Integration Into PhantomOS}
-\label{sec:org019047f}
+\label{sec:org13194ca}
 \noindent\textbf{DEADLINE:} \textit{<2025-06-30 Mon>}\\
 \begin{verbatim}
 Effort: 10
 \end{verbatim}
 \section{{\bfseries\sffamily TODO} \framebox{\#C} PhantomOS Snapshot Tests}
-\label{sec:org05461c8}
+\label{sec:orgb836a2f}
 \noindent\textbf{DEADLINE:} \textit{<2025-07-07 Mon>}\\
 \begin{verbatim}
 Effort: 5
