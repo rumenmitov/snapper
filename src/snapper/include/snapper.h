@@ -2,7 +2,7 @@
 #define __SNAPPER_H
 
 #ifdef __cplusplus
-namespace Snapper
+namespace SnapperNS
 {
   class Snapper;
   extern Snapper *snapper;
@@ -10,7 +10,9 @@ namespace Snapper
   class Snapper
   {
   public:
-    Snapper ();
+    Snapper () {}
+
+    static Snapper *new_snapper ();
 
     void
     init_snapshot ()
@@ -43,6 +45,9 @@ namespace Snapper
     }
 
   private:
+    Snapper (const Snapper &) = delete;
+    Snapper operator= (Snapper &) = delete;
+
     static Snapper *instance;
   };
 
@@ -51,7 +56,3 @@ namespace Snapper
 #endif // __cplusplus
 
 #endif // __SNAPPER_H
-
-// Local Variables:
-// mode: c++
-// End:

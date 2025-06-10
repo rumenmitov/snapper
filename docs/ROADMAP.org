@@ -12,7 +12,7 @@ DEADLINE: <2025-06-16 Mon>
 :END:
 - [X] Create run file and Makefile
 - [ ] +Use Goa as a build tool+
-- [ ] Define data structures and ~Snapper~ object.
+- [X] Define data structures and ~Snapper~ object.
 
 * TODO [#C] Unit Tests
 DEADLINE: <2025-06-16 Mon>

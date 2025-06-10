@@ -1,19 +1,22 @@
-#include "include/snapper.h"
 #include <util/construct_at.h>
 
-namespace Snapper
-{
-  Snapper* Snapper::instance = nullptr;
-  
-  Snapper::Snapper ()
-  {
-    if (instance)
-      return;
+#include "include/snapper.h"
 
-    Genode::construct_at<Snapper*>(instance);
+
+namespace SnapperNS
+{
+  Snapper *snapper = nullptr;
+  Snapper *Snapper::instance = nullptr;
+
+  Snapper *
+  Snapper::new_snapper (void)
+  {
+    if (Snapper::instance)
+      return Snapper::instance;
+
+    Genode::construct_at<Snapper> (Snapper::instance);
+
+    Genode::log("new snapper created.");
+    return Snapper::instance;
   }
 }
-
-// Local Variables:
-// mode: c++
-// End:
