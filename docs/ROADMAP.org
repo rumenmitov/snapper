@@ -5,13 +5,13 @@
 #+options: toc:nil prop:t p:t pri:t
 
 
-* TODO [#A] Setup Snapper Project
+* DONE [#A] Setup Snapper Project
 DEADLINE: <2025-06-16 Mon>
 :PROPERTIES:
 :Effort:   4
 :END:
 - [X] Create run file and Makefile
-- [ ] +Use Goa as a build tool+
+- [X] Use Goa as a build tool
 - [X] Define data structures and ~Snapper~ object.
 
 * TODO [#C] Unit Tests
@@ -19,35 +19,34 @@ DEADLINE: <2025-06-16 Mon>
 :PROPERTIES:
 :Effort:   4
 :END:
-The following unit tests simulate the virtual address space via a linked-list.
+The following unit tests are used to check if the functions are not throwing any unexpected errors. For testing with actual virtual pages in PhantomOS check out the [[#integration-tests][Integration Tests]] section.
 
 ** TODO Snapshot creation
-1. Create a linked list of 1000 elements containing random integers.
-2. Create a snapshot of the linked list.
-3. If test is successful, there should be 1000 files in the _snapshot_ directory of the generation.
+1. Create an array of 1000 elements containing random integers.
+2. Create a snapshot of every element in the array.
+3. If test is successful, there should be no errors thrown.
 
 ** TODO Snapshot successful recovery
 *** Test #1
 Note, this test requires a compressed archive of a generation storing integers in the range from 1 to 1000 in increasing order. The archive should be uncompressed before the test is ran, and the uncompressed files should be deleted after the test finishes.
 
-1. Create an empty linked-list.
-2. Recover each file from the generation into an element in the linked-list.
-3. If test is successful, the linked-list should store all numbers from 1 to 1000 in ascending order.
-
+1. Create an empty array that can hold 1000 integers.
+2. Recover each file from the generation into an element in the array.
+3. If test is successful, the array should store all numbers from 1 to 1000 in ascending order.
 
 *** Test #2
-Note, this test requires a compressed archive containing two generations: one invalid, the second invalid. Both generations are snapshots of a linked-list containing all integers from 1 to 1000 in increasing order. However, the older, invalid one contains some files that are needed by the valid generation. 
+Note, this test requires a compressed archive containing two generations: one invalid, the second invalid. Both generations are snapshots of an array containing all integers from 1 to 1000 in increasing order. However, the older, invalid one contains some files that are needed by the valid generation. 
 
-1. Create an empty linked-list.
-2. Recover each file from the valid generation into an element in the linked-list.
-3. If test is successful, the linked-list should store all numbers from 1 to 1000 in ascending order.
-
+1. Create an empty array that can hold 1000 integers.
+2. Recover each file from the valid generation into an element in the array.
+3. If test is successful, the array should store all numbers from 1 to 1000 in ascending order.
 
 *** Test #3
 Note, this test requires a compressed archive containing a generation and an incomplete snapshot named "current". The generation should store integers in the range from 1 to 1000 in increasing order.
-1. Create an empty linked-list.
-2. Recover each file from the generation into an element in the linked-list.
-3. If test is successful, the linked-list should store all numbers from 1 to 1000 in ascending order and the "current" directory should have been removed.
+
+1. Create an empty array with capacity for 1000 integers.
+2. Recover each file from the generation into an element in the array.
+3. If test is successful, the array should store all numbers from 1 to 1000 in ascending order and the "current" directory should have been removed.
 
 ** TODO Snapshot unsuccessful recovery
 Note, this test requires a compressed archive of a generation whose archive file has an invalid CRC. 
@@ -56,13 +55,13 @@ Note, this test requires a compressed archive of a generation whose archive file
 2. If test is successful, the recovery should not be possible and an error should be written stating that the archive file is invalid.
 
 ** TODO Snapshot purge
-Note, this test requires a compressed archive of two valid generations. Both generations are snapshots of a linked-list containing all integers from 1 to 1000 in increasing order. However, the older one contains some files that are needed by the valid generation. 
+Note, this test requires a compressed archive of two valid generations. Both generations are snapshots of an array containing all integers from 1 to 1000 in increasing order. However, the older one contains some files that are needed by the valid generation. 
 
 1. Purge the older generation.
-2. Create an empty linked-list.
+2. Create an empty array with capacity for 1000 integers.
 3. Trying to recover from the older generation should be unsuccessful.
-4. Recover each file from the non-purged generation into an element in the linked-list.
-5. If test is successful, the linked-list should store all numbers from 1 to 1000 in ascending order.
+4. Recover each file from the non-purged generation into an element in the array.
+5. If test is successful, the array should store all numbers from 1 to 1000 in ascending order.
 
 * TODO [#B] Snapshot Creation
 DEADLINE: <2025-06-16 Mon>
@@ -134,11 +133,14 @@ DEADLINE: <2025-06-30 Mon>
 :PROPERTIES:
 :Effort:   10
 :END:
-* TODO [#C] PhantomOS Snapshot Tests
+* TODO [#C] Integration Tests
 DEADLINE: <2025-07-07 Mon>
 :PROPERTIES:
+:Custom_id: integration-tests
 :Effort:   5
 :END:
+The following tests will be conducted within PhantomOS.
+
 - [ ] Snapshot creation
 - [ ] Snapshot recovery
 - [ ] Snapshot purge

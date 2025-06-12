@@ -7,14 +7,17 @@ namespace SnapperNS
 {
   Snapper *snapper = nullptr;
   Snapper *Snapper::instance = nullptr;
+  Genode::Path<Vfs::MAX_PATH_LEN> Snapper::snapper_root = "/snapper";
 
   Snapper *
-  Snapper::new_snapper (void)
+  Snapper::new_snapper (Genode::Env& env)
   {
     if (Snapper::instance)
       return Snapper::instance;
 
-    static Snapper local_snapper;
+    static Snapper local_snapper(env);
+    env.exec_static_constructors();
+    
     Snapper::instance = &local_snapper;
 
 #ifdef VERBOSE

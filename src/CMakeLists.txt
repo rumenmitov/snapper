@@ -3,7 +3,7 @@ project(Snapper)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Options
-option(VERBOSE "Display verbose output." ON)
+option(VERBOSE "Display verbose output." OFF)
 if (VERBOSE)
   add_definitions(-DVERBOSE)
 endif()

@@ -2,56 +2,57 @@
 #define __SNAPPER_H
 
 #ifdef __cplusplus
-namespace SnapperNS
-{
-  class Snapper;
-  extern Snapper *snapper;
+#include <os/path.h>
+#include <vfs/types.h>
 
-  class Snapper
+#include "utils.h"
+
+namespace SnapperNS {
+class Snapper;
+extern Snapper *snapper;
+
+class Snapper {
+public:
+  Snapper(Genode::Env &env) : env(env) {}
+
+  static Snapper *new_snapper(Genode::Env&);
+
+  static Genode::Path<Vfs::MAX_PATH_LEN> snapper_root;
+
+  void init_snapshot() {
+    TODO(__PRETTY_FUNCTION__);
+  }
+
+  void take_snapshot() {
+    TODO(__PRETTY_FUNCTION__);
+  }
+
+  void commit_snapshot() {
+    TODO(__PRETTY_FUNCTION__);
+  }
+
+  void open_generation(const Genode::String<TIMESTAMP_STR_LEN>&) 
   {
-  public:
-    Snapper () {}
+    TODO(__PRETTY_FUNCTION__);
+  }
 
-    static Snapper *new_snapper ();
+  void restore() {
+    TODO(__PRETTY_FUNCTION__);
+  }
 
-    void
-    init_snapshot ()
-    {
-      // TODO
-    }
+  void purge() {
+    TODO(__PRETTY_FUNCTION__);
+  }
 
-    void
-    take_snapshot ()
-    {
-      // TODO
-    }
+private:
+  Snapper(const Snapper &) = delete;
+  Snapper operator=(Snapper &) = delete;
 
-    void
-    commit_snapshot ()
-    {
-      // TODO
-    }
+  static Snapper *instance;
+  Genode::Env &env;
+};
 
-    void
-    restore ()
-    {
-      // TODO
-    }
-
-    void
-    purge ()
-    {
-      // TODO
-    }
-
-  private:
-    Snapper (const Snapper &) = delete;
-    Snapper operator= (Snapper &) = delete;
-
-    static Snapper *instance;
-  };
-
-}
+} // namespace SnapperNS
 
 #endif // __cplusplus
 

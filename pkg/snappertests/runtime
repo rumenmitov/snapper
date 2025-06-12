@@ -2,5 +2,6 @@
   <config/>
   <content>
     <rom label="snappertests"/>
+    <rom label="vfs.lib.so"/>
   </content>
 </runtime>
