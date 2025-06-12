@@ -17,7 +17,10 @@ namespace SnapperNS
     static Snapper local_snapper;
     Snapper::instance = &local_snapper;
 
+#ifdef VERBOSE
     Genode::log("new snapper created");
+#endif // VERBOSE
+
     return Snapper::instance;
   }
 }

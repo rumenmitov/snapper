@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.10)
 project(Snapper)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Options
+option(VERBOSE "Display verbose output." ON)
+if (VERBOSE)
+  add_definitions(-DVERBOSE)
+endif()
+
 # Main Executables
 add_executable(snapper snapper/main.cc)
 add_executable(snappertests tests/snappertests.cc)
