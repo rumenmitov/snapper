@@ -142,3 +142,10 @@ DEADLINE: <2025-07-07 Mon>
 - [ ] Snapshot creation
 - [ ] Snapshot recovery
 - [ ] Snapshot purge
+
+* TODO [#C] Demo Application to Demonstrate Snapper
+DEADLINE: <2025-06-14 Sat>
+:PROPERTIES:
+:Effort:   15
+:END:
+Create a graphical application to demonstrate Snapper's capabilities. Perhaps a weather app that graphs real-world data? The application state should be taken a snapshot of which will be restored after a system reboot.
