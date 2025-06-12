@@ -1,0 +1,6 @@
+<runtime ram="1M" caps="100" binary="snapper">
+  <config/>
+  <content>
+    <rom label="snapper"/>
+  </content>
+</runtime>
