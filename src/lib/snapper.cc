@@ -14,9 +14,10 @@ namespace SnapperNS
     if (Snapper::instance)
       return Snapper::instance;
 
-    Genode::construct_at<Snapper> (Snapper::instance);
+    static Snapper local_snapper;
+    Snapper::instance = &local_snapper;
 
-    Genode::log("new snapper created.");
+    Genode::log("new snapper created");
     return Snapper::instance;
   }
 }

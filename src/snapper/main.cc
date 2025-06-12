@@ -1,7 +1,7 @@
 #include <base/component.h>
 #include <base/log.h>
 
-#include "include/snapper.h"
+#include "snapper.h"
 
 using namespace SnapperNS;
 

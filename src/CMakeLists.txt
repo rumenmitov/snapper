@@ -2,16 +2,18 @@ cmake_minimum_required(VERSION 3.10)
 project(Snapper)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-
+# Main Executables
 add_executable(snapper snapper/main.cc)
-add_executable(snappertests snapper/tests.cc)
+add_executable(snappertests tests/snappertests.cc)
 
-add_library(snap snapper/snapper.cc)
-add_library(snaptests snapper/snapper.cc)
+# Snapper Library (libsnap)
+add_library(snap lib/snapper.cc)
+target_include_directories(snap PUBLIC include)
 
+# Linking
 target_link_libraries(snapper PUBLIC snap)
-target_include_directories(snapper PUBLIC "${PROJECT_SOURCE_DIR}/snapper/include")
+target_include_directories(snapper PUBLIC include)
 
 target_link_libraries(snappertests PUBLIC snap)
-target_include_directories(snappertests PUBLIC "${PROJECT_SOURCE_DIR}/snapper/include")
+target_include_directories(snappertests PUBLIC include)
 
