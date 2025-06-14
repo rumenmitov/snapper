@@ -28,34 +28,34 @@ The following unit tests are used to check if the functions are not throwing any
 
 ** TODO Snapshot successful recovery
 *** Test #1
-Note, this test requires a compressed archive of a generation storing integers in the range from 1 to 1000 in increasing order. The archive should be uncompressed before the test is ran, and the uncompressed files should be deleted after the test finishes.
+Note, this test requires an archive of a generation storing integers in the range from 1 to 1000 in increasing order.
 
 1. Create an empty array that can hold 1000 integers.
 2. Recover each file from the generation into an element in the array.
 3. If test is successful, the array should store all numbers from 1 to 1000 in ascending order.
 
 *** Test #2
-Note, this test requires a compressed archive containing two generations: one invalid, the second invalid. Both generations are snapshots of an array containing all integers from 1 to 1000 in increasing order. However, the older, invalid one contains some files that are needed by the valid generation. 
+Note, this test requires an archive containing two generations: one invalid, the second invalid. Both generations are snapshots of an array containing all integers from 1 to 1000 in increasing order. However, the older, invalid one contains some files that are needed by the valid generation. 
 
 1. Create an empty array that can hold 1000 integers.
 2. Recover each file from the valid generation into an element in the array.
 3. If test is successful, the array should store all numbers from 1 to 1000 in ascending order.
 
 *** Test #3
-Note, this test requires a compressed archive containing a generation and an incomplete snapshot named "current". The generation should store integers in the range from 1 to 1000 in increasing order.
+Note, this test requires an archive containing a generation and an incomplete snapshot named "current". The generation should store integers in the range from 1 to 1000 in increasing order.
 
 1. Create an empty array with capacity for 1000 integers.
 2. Recover each file from the generation into an element in the array.
 3. If test is successful, the array should store all numbers from 1 to 1000 in ascending order and the "current" directory should have been removed.
 
 ** TODO Snapshot unsuccessful recovery
-Note, this test requires a compressed archive of a generation whose archive file has an invalid CRC. 
+Note, this test requires an archive of a generation whose archive file has an invalid CRC. 
 
 1. Try to recover the generation.
 2. If test is successful, the recovery should not be possible and an error should be written stating that the archive file is invalid.
 
 ** TODO Snapshot purge
-Note, this test requires a compressed archive of two valid generations. Both generations are snapshots of an array containing all integers from 1 to 1000 in increasing order. However, the older one contains some files that are needed by the valid generation. 
+Note, this test requires an archive of two valid generations. Both generations are snapshots of an array containing all integers from 1 to 1000 in increasing order. However, the older one contains some files that are needed by the valid generation. 
 
 1. Purge the older generation.
 2. Create an empty array with capacity for 1000 integers.
