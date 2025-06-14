@@ -44,13 +44,13 @@ using namespace SnapperNS;
 
 /* Tests */
 void test_snapshot_creation(void) {
-  IGNORE;
+//  IGNORE;
 
   snapper->init_snapshot();
 
   TODO("take snapshot of pages");
 
-  snapper->commit_snapshot();
+  // snapper->commit_snapshot();
 
   TEST(true);
 }

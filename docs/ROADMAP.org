@@ -21,7 +21,7 @@ DEADLINE: <2025-06-16 Mon>
 :END:
 The following unit tests are used to check if the functions are not throwing any unexpected errors. For testing with actual virtual pages in PhantomOS check out the [[#integration-tests][Integration Tests]] section.
 
-** TODO Snapshot creation
+** DONE Snapshot creation
 1. Create an array of 1000 elements containing random integers.
 2. Create a snapshot of every element in the array.
 3. If test is successful, there should be no errors thrown.
@@ -48,13 +48,13 @@ Note, this test requires an archive containing a generation and an incomplete sn
 2. Recover each file from the generation into an element in the array.
 3. If test is successful, the array should store all numbers from 1 to 1000 in ascending order and the "current" directory should have been removed.
 
-** TODO Snapshot unsuccessful recovery
+** DONE Snapshot unsuccessful recovery
 Note, this test requires an archive of a generation whose archive file has an invalid CRC. 
 
 1. Try to recover the generation.
 2. If test is successful, the recovery should not be possible and an error should be written stating that the archive file is invalid.
 
-** TODO Snapshot purge
+** DONE Snapshot purge
 Note, this test requires an archive of two valid generations. Both generations are snapshots of an array containing all integers from 1 to 1000 in increasing order. However, the older one contains some files that are needed by the valid generation. 
 
 1. Purge the older generation.
