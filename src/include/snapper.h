@@ -31,7 +31,11 @@ public:
     TODO(__PRETTY_FUNCTION__);
   }
 
-  void open_generation(const Genode::String<TIMESTAMP_STR_LEN>&) 
+  /**
+   * @brief Begin the restoration of a generation. If a generation is
+   * not specified, the latest one will be used.
+   */
+  void open_generation(const Genode::String<TIMESTAMP_STR_LEN>& = "") 
   {
     TODO(__PRETTY_FUNCTION__);
   }

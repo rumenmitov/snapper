@@ -46,25 +46,63 @@ using namespace SnapperNS;
 void test_snapshot_creation(void) {
   IGNORE;
 
+  snapper->init_snapshot();
+
   TODO("take snapshot of pages");
+
+  snapper->commit_snapshot();
 
   TEST(true);
 }
 
-void test_successful_recovery_1(void) 
-{
+void test_successful_recovery(void) {
   IGNORE;
-  TODO("recover into array and check array values");
+  int vm_pages[1000];
+
+  snapper->open_generation();
+
+  TODO("recover into array");
+
+  for (int i = 0; i < 1000; i++) {
+    if (vm_pages[i] != i + 1)
+      TEST(false);
+  }
+}
+
+void test_unsuccessful_recovery(void) {
+  IGNORE;
+  int vm_pages[1000];
+
+  snapper->open_generation();
+
+  TODO("try to recover into array");
+
+  for (int i = 0; i < 1000; i++) {
+    if (vm_pages[i] != i + 1)
+      TEST(true);
+  }
+
+  TEST(false);
+}
+
+void test_snapshot_purge(void) {
+  IGNORE;
+  snapper->purge();
+
+  TEST(true);
 }
 
 void Component::construct(Genode::Env &env) {
   Genode::log("-*- SNAPPER TEST SUITE -*-\n");
 
   snapper = SnapperNS::Snapper::new_snapper(env);
-  if (!snapper) Genode::error("Could not initialize snapper object!");
+  if (!snapper)
+    Genode::error("Could not initialize snapper object!");
 
   test_snapshot_creation();
-  test_successful_recovery_1();
+  test_successful_recovery();
+  test_unsuccessful_recovery();
+  test_snapshot_purge();
 
   summary();
   Genode::log("\n-*- SNAPPER TESTS DONE -*-");
