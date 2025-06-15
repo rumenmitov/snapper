@@ -7,9 +7,9 @@
 #include <os/path.h>
 #include <os/vfs.h>
 #include <rtc_session/connection.h>
+#include <util/dictionary.h>
 #include <vfs/simple_env.h>
 #include <vfs/types.h>
-#include <util/dictionary.h>
 
 #include "utils.h"
 
@@ -27,7 +27,8 @@ namespace SnapperNS
       Creation,
       Restoration,
       Purge
-    };
+    } state
+        = Dormant;
 
     enum Result
     {
@@ -85,12 +86,20 @@ namespace SnapperNS
     Snapper (const Snapper &) = delete;
     Snapper operator= (Snapper &) = delete;
 
-    struct File 
+    struct Mapping
+        : Genode::Dictionary<Mapping,
+                             Genode::String<Vfs::MAX_PATH_LEN> >::Element
+    {
+      Genode::uint64_t key;
+      char path[Vfs::MAX_PATH_LEN];
+    };
+
+    struct File
     {
       Genode::uint8_t version = 2;
-      Genode::uint8_t rc      = 0;
-      Genode::uint32_t crc    = 0;
-      void *data              = nullptr;
+      Genode::uint8_t rc = 0;
+      Genode::uint32_t crc = 0;
+      void *data = nullptr;
     };
 
     static Snapper *instance;
@@ -105,8 +114,9 @@ namespace SnapperNS
     Genode::Reconstructible<Genode::Directory> generation;
     Genode::Reconstructible<Genode::Directory> snapshot;
 
-    State state = Dormant;
-    Genode::Reconstructible<Genode::Dictionary<File, const char *>> archive;
+    Genode::Reconstructible<
+        Genode::Dictionary<Mapping, Genode::String<Vfs::MAX_PATH_LEN> > >
+        archive;
   };
 
 } // namespace SnapperNS

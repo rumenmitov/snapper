@@ -25,8 +25,7 @@ namespace SnapperNS
       : env (env), config (env, "config"), heap (env.ram (), env.rm ()),
         snapper_root (env, heap, config.xml ().sub_node ("vfs")), rtc (env),
         generation (static_cast<Vfs::Simple_env &> (snapper_root)),
-        snapshot (static_cast<Vfs::Simple_env &> (snapper_root)),
-        archive()
+        snapshot (static_cast<Vfs::Simple_env &> (snapper_root)), archive ()
   {
   }
 
@@ -109,6 +108,41 @@ namespace SnapperNS
             }
         });
 
+    if (latest != "")
+      {
+        try
+          {
+            Genode::Readonly_file archive_file (
+                snapper_root, Genode::Directory::join (latest, "archive"));
+
+            const Genode::size_t mapping_size = sizeof (Mapping);
+            char _buf[mapping_size];
+
+            Genode::Byte_range_ptr buf (_buf, mapping_size);
+
+            Genode::Readonly_file::At start_of_archive_data (5);
+
+            Genode::size_t bytes_read = 0;
+
+            do
+              {
+                bytes_read += archive_file.read (start_of_archive_data, buf);
+              }
+            while (bytes_read < mapping_size);
+
+            Mapping (*reinterpret_cast<Mapping *> (buf.start));
+            TODO ("implement copy constructor for mapping, so that it can be "
+                  "added to the dictionary");
+
+            TODO ("repeat this until archive file is exhausted");
+          }
+        catch (Genode::File::Open_failed)
+          {
+            Genode::error ("Failed to open archive file of generation: ",
+                           latest);
+            TODO ("handle recovery is not possible");
+          }
+      }
 
     return Ok;
   }
