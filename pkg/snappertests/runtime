@@ -1,13 +1,19 @@
-<runtime ram="1M" caps="100" binary="snappertests">
-  <config>
-    <vfs>
-      <ram/>
-      <tar name="snapper-root_tests.tar"/>
-    </vfs>
-  </config>
+<runtime ram="10M" caps="400" binary="snappertests">
+
+  <requires> <rtc/> </requires>
+
   <content>
     <rom label="snappertests"/>
     <rom label="vfs.lib.so"/>
     <rom label="snapper-root_tests.tar" />
   </content>
+
+  <config>
+    <rtc/>
+    <vfs>
+      <ram/>
+      <tar name="snapper-root_tests.tar"/>
+    </vfs>
+  </config>
+
 </runtime>
