@@ -42,11 +42,11 @@ Note, this test requires an archive containing two generations: one invalid, the
 3. If test is successful, the array should store all numbers from 1 to 1000 in ascending order.
 
 *** Test #3
-Note, this test requires an archive containing a generation and an incomplete snapshot named "current". The generation should store integers in the range from 1 to 1000 in increasing order.
+Note, this test requires an archive containing a generation and an invalid snapshot created after the valid generation. The valid generation should store integers in the range from 1 to 1000 in increasing order.
 
 1. Create an empty array with capacity for 1000 integers.
 2. Recover each file from the generation into an element in the array.
-3. If test is successful, the array should store all numbers from 1 to 1000 in ascending order and the "current" directory should have been removed.
+3. If test is successful, the array should store all numbers from 1 to 1000 in ascending order and the incomplete generation's directory should have been removed.
 
 ** DONE Snapshot unsuccessful recovery
 Note, this test requires an archive of a generation whose archive file has an invalid CRC. 
@@ -68,23 +68,25 @@ DEADLINE: <2025-06-16 Mon>
 :PROPERTIES:
 :Effort:   10
 :END:
-1. Delete any unfinished snapshot generation called "current".
-2. Initialize a new generation directory called "current".
+1. If the _latest_ generation does not have a valid archive file, delete it (the generation is incomplete).
+2. Initialize a new generation directory with an RTC timestamp as the name.
 3. Within the generation directory create the archive file and the snapshot directory.
 4. Check if there is a valid prior generation (based on the timestamps). If there is, load the archive file's data into the ~Snapper::Archiver~ array.
 5. Let h_{i} := ~Snapper::Archiver[i]~. If ~Snapper::Archiver[i]~ contains redundant files, use the /first file/ before the comma.
-6. For each virtual page where the CRC of the file h_{i} does not match the CRC of page (or h_{i} does not exist):
-   1. Create new file, h_{j}, and save the binary contents of the page into this new file.
-   2. Initialize the snapshot file with the new CRC of the data, a reference count of 1, and the binary data of the page.
+6. For each p_{i} \in P where the CRC of the file h_{i} does not match the CRC of p_{i} (or h_{i} does not exist):
+   1. Create new file, h_{j}, and save the binary contents of p_{i} into this new file.
+   2. Initialize the snapshot file with the new CRC of the data, a reference count of 1, and the binary data of p_{i}.
    3. Update ~Snapper::Archiver[i]~ \gets /path(/ h_{j} /)/, there /path()/ is the path relative to _<snapper-root>_.
-7. For each virtual page where CRC of the file h_{i} matches the CRC of the page:
+7. For each p_{i} \in P where CRC of the file h_{i} matches the CRC of p_{i}:
    1. If the file h_{i} has a reference count greater than or equal to *SNAPPER_REDUND*:
       1. Create a new file h_{j} as outlined in Step 6.
       2. Increment the reference count for all files in ~Snapper::Archiver[i]~.
       2. Update ~Snapper::Archiver[i]~ \gets (/path(/ h_{j} /)/ || ',' || ~Snapper::Archiver[i]~) - i.e. prepend the new file path, separated by a comma, to the string containing the redundant file copies.
    2. If the file h_{i} has a reference count lower than *SNAPPER_REDUND*, increment the reference count of it and all other redundant files in ~Snapper::Archiver[i]~.
 8. Save ~Snapper::Archiver~ into the archive file and calculate its CRC.
-9. Rename "current" to the current UNIX timestamp to signify that the generation is complete.
+
+#+LATEX: \clearpage
+
 
 * TODO [#B] Snapshot Recovery
 DEADLINE: <2025-06-23 Mon>
