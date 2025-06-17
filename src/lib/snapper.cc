@@ -1,10 +1,12 @@
-#include <format/snprintf.h>
 #include <util/construct_at.h>
 #include <vfs/directory_service.h>
 #include <vfs/vfs_handle.h>
 
 #include "snapper.h"
 
+/*
+ * UTILITIES
+ */
 [[maybe_unused]] static Genode::String<
     Vfs::Directory_service::Dirent::Name::MAX_LEN>
 timestamp_to_str (const Rtc::Timestamp &ts)
@@ -18,11 +20,17 @@ timestamp_to_str (const Rtc::Timestamp &ts)
 
 namespace SnapperNS
 {
-
+  /*
+   * STATIC VARIABLES
+   */
   Snapper *snapper = nullptr;
   Snapper *Snapper::instance = nullptr;
 
   const Genode::uint8_t Snapper::Version = 2;
+
+  /*
+   * CONSTRUCTORS
+   */
 
   /* TODO
    * snapper_root should be initialized based off of a confurable
@@ -34,8 +42,21 @@ namespace SnapperNS
         snapper_root (env, heap, config.xml ().sub_node ("vfs")), rtc (env),
         generation (static_cast<Vfs::Simple_env &> (snapper_root)),
         snapshot (static_cast<Vfs::Simple_env &> (snapper_root)),
-        snapshot_dir_path ("/"), archive ()
+        snapshot_dir_path ("/"), archiver ()
   {
+  }
+
+  Snapper::~Snapper ()
+  {
+    generation.destruct ();
+    snapshot.destruct ();
+    archiver.destruct ();
+
+    instance = nullptr;
+    
+#ifdef VERBOSE
+    Genode::log ("snapper destroyed");
+#endif // VERBOSE
   }
 
   Snapper *
@@ -56,6 +77,9 @@ namespace SnapperNS
     return Snapper::instance;
   }
 
+  /*
+   * CREATING SNAPSHOT
+   */
   Snapper::Result
   Snapper::init_snapshot ()
   {
@@ -120,7 +144,6 @@ namespace SnapperNS
 
     // check if there is a prior generation and load its
     // archive file
-    archive.construct ();
     latest = "";
 
     TODO ("check whether archive file has a valid crc");
@@ -145,7 +168,7 @@ namespace SnapperNS
 
             Genode::Readonly_file::At pos (5);
 
-            char _key_buf[sizeof (Genode::uint64_t)];
+            char _key_buf[sizeof (Archive::ArchiveKey)];
             char _val_buf[Vfs::MAX_PATH_LEN];
 
             Genode::Byte_range_ptr key_buf (_key_buf, sizeof (_key_buf));
@@ -169,9 +192,9 @@ namespace SnapperNS
 
                 pos.value += bytes_read;
 
-                FilePath _ (
-                    *(reinterpret_cast<Genode::uint64_t *> (key_buf.start)),
-                    val_buf.start, *archive);
+                Archive::ArchiveElement _ (
+                  *(reinterpret_cast<Archive::ArchiveKey *> (key_buf.start)),
+                    val_buf.start, archiver->archive);
               }
             while (true);
           }
@@ -188,7 +211,7 @@ namespace SnapperNS
 
   Snapper::Result
   Snapper::take_snapshot (void const *const payload, Genode::uint64_t size,
-                          Genode::uint64_t identifier)
+                          Archive::ArchiveKey identifier)
   {
     if (state != Creation)
       return InvalidState;
@@ -201,13 +224,12 @@ namespace SnapperNS
 
     // check if identifier exists in the mapping and if the crc
     // matches the calculated crc of the payload.
-    archive->with_element (
+    archiver->archive.with_element (
         identifier,
-        [this, &new_file_needed] (
-            const Genode::String<Vfs::MAX_PATH_LEN> &filepath) {
+        [this, &new_file_needed] (const Archive::ArchiveElement &element) {
           try
             {
-              Genode::Readonly_file file (snapper_root, filepath);
+              Genode::Readonly_file file (snapper_root, element.value);
 
               TODO ("read crc and rc of file and decide whether it needs to "
                     "be updated");
@@ -217,7 +239,7 @@ namespace SnapperNS
               new_file_needed = true;
 
 #ifdef VERBOSE
-              Genode::log ("Failed to open snapshot file: ", filepath);
+              Genode::log ("Failed to open snapshot file: ", element.value);
 #endif // VERBOSE
             }
         },
@@ -242,14 +264,12 @@ namespace SnapperNS
         snapshot_file_count = 0;
       }
 
-    char _filepath_buf[Vfs::MAX_PATH_LEN];
-    Format::snprintf (_filepath_buf, sizeof (_filepath_buf), "%16llx",
-                      snapshot_file_count);
+    Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
+        filepath_base ((Genode::Hex (snapshot_file_count)));
 
     try
       {
-        Genode::New_file file (
-            snapshot, Genode::Path<Vfs::MAX_PATH_LEN> (_filepath_buf));
+        Genode::New_file file (*snapshot, filepath_base);
 
         // writing Snapper version
         Genode::New_file::Append_result res
@@ -257,7 +277,7 @@ namespace SnapperNS
 
         if (res != Genode::New_file::Append_result::OK)
           {
-            Genode::error ("Could not write version to file: ", Genode::String<sizeof(_filepath_buf)>(_filepath_buf));
+            Genode::error ("Could not write version to file: ", filepath_base);
             TODO ("handle snapshot not possible!");
           }
 
@@ -268,7 +288,7 @@ namespace SnapperNS
         if (res != Genode::New_file::Append_result::OK)
           {
             Genode::error ("Could not write reference count to file: ",
-                           Genode::String<sizeof(_filepath_buf)>(_filepath_buf));
+                           filepath_base);
             TODO ("handle snapshot not possible!");
           }
 
@@ -277,7 +297,8 @@ namespace SnapperNS
 
         if (res != Genode::New_file::Append_result::OK)
           {
-            Genode::error ("Could not write CRC to file: ", Genode::String<sizeof(_filepath_buf)>(_filepath_buf));
+            Genode::error ("Could not write CRC to file: ", filepath_base);
+
             TODO ("handle snapshot not possible!");
           }
 
@@ -286,13 +307,13 @@ namespace SnapperNS
 
         if (res != Genode::New_file::Append_result::OK)
           {
-            Genode::error ("Could not write payload to file: ", Genode::String<sizeof(_filepath_buf)>(_filepath_buf));
+            Genode::error ("Could not write payload to file: ", filepath_base);
             TODO ("handle snapshot not possible!");
           }
       }
     catch (Genode::New_file::Create_failed)
       {
-        Genode::error ("Could not create file: ", Genode::String<sizeof(_filepath_buf)>(_filepath_buf));
+        Genode::error ("Could not create file: ", filepath_base);
         TODO ("handle snapshot not possible!");
       }
 
@@ -300,15 +321,13 @@ namespace SnapperNS
     // snapper_root)
 
     Genode::String<Vfs::MAX_PATH_LEN> filepath
-        = Genode::Directory::join (snapshot_dir_path, _filepath_buf);
+        = Genode::Directory::join (snapshot_dir_path, filepath_base);
 
-    archive->with_element (
+    archiver->archive.with_element (
         identifier,
-        [filepath] (Genode::String<Vfs::MAX_PATH_LEN> &value) {
-          value = filepath;
-        },
+        [filepath] (Archive::ArchiveElement &value) { value.value = filepath; },
         [this, identifier, filepath] () {
-          FilePath _ (identifier, filepath, archive);
+          Archive::ArchiveElement _ (identifier, filepath.string (), archiver->archive);
         });
 
     return Ok;

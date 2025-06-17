@@ -18,11 +18,12 @@ namespace SnapperNS
   class Snapper;
   extern Snapper *snapper;
 
+
   class Snapper
   {
   public:
     static const Genode::uint8_t Version;
-    
+
     enum State
     {
       Dormant,
@@ -40,7 +41,35 @@ namespace SnapperNS
       CouldNotRemoveDir,
     };
 
+    struct Archive
+    {
+      typedef Genode::uint64_t ArchiveKey;
+      struct ArchiveElement;
+      typedef Genode::Dictionary<ArchiveElement, ArchiveKey> ArchiveContainer;
+
+      /* TODO:
+       * Check if element with id exists.
+       */
+      struct ArchiveElement
+          : Genode::Dictionary<ArchiveElement, ArchiveKey>::Element
+      {
+        Genode::String<Vfs::MAX_PATH_LEN> value;
+
+        ArchiveElement (
+            ArchiveKey id, const char *value,
+            Genode::Dictionary<ArchiveElement, ArchiveKey> &archive)
+            : Element (archive, id), value (value)
+        {
+        }
+      };
+
+      Archive () : archive () {}
+
+      ArchiveContainer archive;
+    };
+
     Snapper (Genode::Env &);
+    ~Snapper();
 
     static Snapper *new_snapper (Genode::Env &);
 
@@ -53,7 +82,8 @@ namespace SnapperNS
      * @brief Saves the payload into a snapshot file and adds the
      *        mapping entry to the archive.
      */
-    Result take_snapshot (void const *const, Genode::uint64_t, Genode::uint64_t);
+    Result take_snapshot (void const *const, Genode::uint64_t,
+                          Archive::ArchiveKey);
 
     void
     commit_snapshot ()
@@ -93,25 +123,6 @@ namespace SnapperNS
       SNAPPER_THRESH = 100
     };
 
-    struct File
-    {
-      Genode::uint8_t version = 2;
-      Genode::uint8_t rc = 0;
-      Genode::uint32_t crc = 0;
-      void *data = nullptr;
-    };
-
-    struct FilePath : Genode::Dictionary<FilePath, Genode::uint64_t>::Element
-    {
-      Genode::String<Vfs::MAX_PATH_LEN> value;
-
-      FilePath (Genode::uint64_t id, const char *value,
-                Genode::Dictionary<FilePath, Genode::uint64_t> &archive)
-          : Element (archive, id), value (value)
-      {
-      }
-    };
-
     static Snapper *instance;
     Genode::Env &env;
 
@@ -126,8 +137,7 @@ namespace SnapperNS
     Genode::String<Vfs::MAX_PATH_LEN> snapshot_dir_path;
     Genode::uint64_t snapshot_file_count = 0;
 
-    Genode::Reconstructible<Genode::Dictionary<FilePath, Genode::uint64_t> >
-        archive;
+    Genode::Reconstructible<Archive> archiver;
   };
 
 } // namespace SnapperNS

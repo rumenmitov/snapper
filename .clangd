@@ -1,0 +1,4 @@
+CompileFlags:
+  Compiler: g++
+  Add: [-std=c++20, -Wno-mismatched-tags]
+EnableSnippets: true
