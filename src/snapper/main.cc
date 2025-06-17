@@ -5,13 +5,20 @@
 
 using namespace SnapperNS;
 
-void Component::construct(Genode::Env& env) 
+void
+Component::construct (Genode::Env &env)
 {
-  Genode::log("snapper init");
+  Genode::log ("snapper init");
 
-  snapper = Snapper::new_snapper(env);
-  
-  Genode::log("snapper exit");
+  Snapper::Config config;
+
+#ifdef VERBOSE
+  config.verbose = true;
+#endif
+
+  snapper = SnapperNS::Snapper::new_snapper (env, config);
+  if (!snapper)
+    Genode::error ("Could not initialize snapper object!");
+
+  Genode::log ("snapper exit");
 }
-
-

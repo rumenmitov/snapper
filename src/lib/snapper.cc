@@ -37,12 +37,12 @@ namespace SnapperNS
    * path. That will also then affect the initialization of
    * snapshot_dir_path.
    */
-  Snapper::Snapper (Genode::Env &env)
+  Snapper::Snapper (Genode::Env &env, const Snapper::Config &snapper_config)
       : env (env), config (env, "config"), heap (env.ram (), env.rm ()),
         snapper_root (env, heap, config.xml ().sub_node ("vfs")), rtc (env),
         generation (static_cast<Vfs::Simple_env &> (snapper_root)),
         snapshot (static_cast<Vfs::Simple_env &> (snapper_root)),
-        snapshot_dir_path ("/"), archiver ()
+        snapshot_dir_path ("/"), snapper_config (snapper_config), archiver ()
   {
   }
 
@@ -54,25 +54,23 @@ namespace SnapperNS
 
     instance = nullptr;
 
-#ifdef VERBOSE
-    Genode::log ("Snapper object destroyed.");
-#endif // VERBOSE
+    if (snapper_config.verbose)
+      Genode::log ("Snapper object destroyed.");
   }
 
   Snapper *
-  Snapper::new_snapper (Genode::Env &env)
+  Snapper::new_snapper (Genode::Env &env, const Snapper::Config &config)
   {
     if (Snapper::instance)
       return Snapper::instance;
 
-    static Snapper local_snapper (env);
+    static Snapper local_snapper (env, config);
     env.exec_static_constructors ();
 
     Snapper::instance = &local_snapper;
 
-#ifdef VERBOSE
-    Genode::log ("New snapper object created.");
-#endif // VERBOSE
+    if (config.verbose)
+      Genode::log ("New snapper object created.");
 
     return Snapper::instance;
   }
@@ -261,9 +259,8 @@ namespace SnapperNS
           }
       }
 
-#ifdef VERBOSE
-    Genode::log ("No unfinished generation remain.");
-#endif // VERBOSE
+    if (snapper_config.verbose)
+      Genode::log ("No unfinished generation remain.");
 
     return Ok;
   }
@@ -344,7 +341,7 @@ namespace SnapperNS
                 if (bytes_read == 0)
                   {
                     Genode::error ("Archive entry is invalid!");
-                    if (SNAPPER_INTEGR)
+                    if (snapper_config.integrity)
                       {
                         throw CrashStates::INVALID_ARCHIVE_ENTRY;
                       }
@@ -371,7 +368,7 @@ namespace SnapperNS
             Genode::error ("Failed to open archive file of generation: ",
                            latest);
 
-            if (SNAPPER_INTEGR)
+            if (snapper_config.integrity)
               {
                 throw CrashStates::INVALID_ARCHIVE_FILE;
               }

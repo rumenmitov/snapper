@@ -41,6 +41,22 @@ namespace SnapperNS
       LoadGenFailed,
     };
 
+    enum CrashStates
+    {
+      SNAPSHOT_NOT_POSSIBLE,
+      INVALID_ARCHIVE_FILE,
+      INVALID_ARCHIVE_ENTRY,
+    };
+
+    /**
+     * @brief Stores the configuration for the Snapper object.
+     */
+    struct Config 
+    {
+      bool verbose = false;
+      bool integrity = true;
+    };
+
     /**
      * @brief Keeps track of which files are backing up which virtual
      * object (identified by a ArchiveKey).
@@ -79,7 +95,7 @@ namespace SnapperNS
     /**
      * @brief Creates a new singleton of Snapper.
      */
-    static Snapper *new_snapper (Genode::Env &);
+    static Snapper *new_snapper (Genode::Env &, const Config&);
 
     /**
      * @brief Begins the snapshot process.
@@ -127,21 +143,14 @@ namespace SnapperNS
     }
 
   private:
-    Snapper (Genode::Env &);
+    Snapper (Genode::Env &, const Config&);
     Snapper (const Snapper &) = delete;
     Snapper operator= (Snapper &) = delete;
-
-    enum CrashStates
-    {
-      SNAPSHOT_NOT_POSSIBLE,
-      INVALID_ARCHIVE_FILE,
-      INVALID_ARCHIVE_ENTRY,
-    };
 
     enum
     {
       SNAPPER_THRESH = 100,
-      SNAPPER_INTEGR  = true
+      SNAPPER_INTEGR = true
     };
 
     static Snapper *instance;
@@ -158,6 +167,7 @@ namespace SnapperNS
     Genode::String<Vfs::MAX_PATH_LEN> snapshot_dir_path;
     Genode::uint64_t snapshot_file_count = 0;
 
+    Config snapper_config;
     Genode::Reconstructible<Archive> archiver;
 
     /**
