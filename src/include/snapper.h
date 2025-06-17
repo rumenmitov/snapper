@@ -8,6 +8,7 @@
 #include <os/vfs.h>
 #include <rtc_session/connection.h>
 #include <util/dictionary.h>
+#include <util/noncopyable.h>
 #include <vfs/simple_env.h>
 #include <vfs/types.h>
 
@@ -18,7 +19,7 @@ namespace SnapperNS
   class Snapper;
   extern Snapper *snapper;
 
-  class Snapper
+  class Snapper : Genode::Noncopyable
   {
   public:
     static const Genode::uint8_t Version;
@@ -44,7 +45,7 @@ namespace SnapperNS
      * @brief Keeps track of which files are backing up which virtual
      * object (identified by a ArchiveKey).
      */
-    struct Archive
+    struct Archive : Genode::Noncopyable
     {
       typedef Genode::uint64_t ArchiveKey;
       struct ArchiveElement;
