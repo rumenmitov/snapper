@@ -112,6 +112,9 @@ Note, that when a file's reference count is decremented to 0, the file is remove
 1. Make sure the generation is valid (i.e. it has an archive file with a valid CRC).
 2. If the archive file has an invalid CRC:
    1. If *SNAPPER_INTEGR* is set to true, crash the system and ask the system administrator to replace the generation's corrupted archive file with a backup copy.
+
+      Note, that if no backup copy exists it is highly recommended to manually remove the current generation as well as all subsequent generations. Snapper can continue to function without the removal, but the broken generation and its files will never be removed. Alternatively, the administrator could manually remove the broken generation and set *SNAPPER_INTEGR* to false. That way any snapshots that relied on the broken generation will only output warnings but will not crash the system if they are unable to recover a file.
+      
    2. Otherwise, log an error message and boot the system into a clean state.
 3. If the archive file has a valid CRC:
    1. Load the archive file into ~Snapper::Archiver~.

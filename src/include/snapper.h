@@ -18,7 +18,6 @@ namespace SnapperNS
   class Snapper;
   extern Snapper *snapper;
 
-
   class Snapper
   {
   public:
@@ -37,18 +36,24 @@ namespace SnapperNS
     {
       Ok,
       InvalidState,
-      CouldNotCreateDir,
-      CouldNotRemoveDir,
+      InitFailed,
+      LoadGenFailed,
     };
 
+    /**
+     * @brief Keeps track of which files are backing up which virtual
+     * object (identified by a ArchiveKey).
+     */
     struct Archive
     {
       typedef Genode::uint64_t ArchiveKey;
       struct ArchiveElement;
       typedef Genode::Dictionary<ArchiveElement, ArchiveKey> ArchiveContainer;
 
-      /* TODO:
-       * Check if element with id exists.
+      /* INFO
+       * No need to check if element is already present as this
+       * constructor should ONLY be called by the with_element()'s no_match
+       * function.
        */
       struct ArchiveElement
           : Genode::Dictionary<ArchiveElement, ArchiveKey>::Element
@@ -68,13 +73,15 @@ namespace SnapperNS
       ArchiveContainer archive;
     };
 
-    Snapper (Genode::Env &);
-    ~Snapper();
+    ~Snapper ();
 
+    /**
+     * @brief Creates a new singleton of Snapper.
+     */
     static Snapper *new_snapper (Genode::Env &);
 
     /**
-     * @brief Begin the snapshot process.
+     * @brief Begins the snapshot process.
      */
     Result init_snapshot (void);
 
@@ -85,6 +92,10 @@ namespace SnapperNS
     Result take_snapshot (void const *const, Genode::uint64_t,
                           Archive::ArchiveKey);
 
+    /**
+     * @brief Completes the snapshot process by saving the archiver's
+     * contents into the archive file.
+     */
     void
     commit_snapshot ()
     {
@@ -115,12 +126,21 @@ namespace SnapperNS
     }
 
   private:
+    Snapper (Genode::Env &);
     Snapper (const Snapper &) = delete;
     Snapper operator= (Snapper &) = delete;
 
+    enum CrashStates
+    {
+      SNAPSHOT_NOT_POSSIBLE,
+      INVALID_ARCHIVE_FILE,
+      INVALID_ARCHIVE_ENTRY,
+    };
+
     enum
     {
-      SNAPPER_THRESH = 100
+      SNAPPER_THRESH = 100,
+      SNAPPER_INTEGR  = true
     };
 
     static Snapper *instance;
@@ -138,6 +158,28 @@ namespace SnapperNS
     Genode::uint64_t snapshot_file_count = 0;
 
     Genode::Reconstructible<Archive> archiver;
+
+    /**
+     * @brief Removes the last generation if it does not contain a
+     * valid archive file (i.e. it is an incomplete snapshot).
+     */
+    Result __remove_unfinished_gen (void);
+
+    /**
+     * @brief Initializes the current generation by creating the
+     * appropriate directories.
+     */
+    Result __init_gen (void);
+
+    /**
+     * @brief Tries to load the archive file from the specified
+     * generation into archiver.
+     *
+     * If a generation is not specified, the latest generation will be used.
+     */
+    Result __load_gen (
+        const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
+            & = "");
   };
 
 } // namespace SnapperNS

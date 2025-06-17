@@ -53,9 +53,9 @@ namespace SnapperNS
     archiver.destruct ();
 
     instance = nullptr;
-    
+
 #ifdef VERBOSE
-    Genode::log ("snapper destroyed");
+    Genode::log ("Snapper object destroyed.");
 #endif // VERBOSE
   }
 
@@ -71,7 +71,7 @@ namespace SnapperNS
     Snapper::instance = &local_snapper;
 
 #ifdef VERBOSE
-    Genode::log ("new snapper created");
+    Genode::log ("New snapper object created.");
 #endif // VERBOSE
 
     return Snapper::instance;
@@ -88,125 +88,17 @@ namespace SnapperNS
 
     state = Creation;
 
-    // check if latest generation is valid. if not, remove it
-    Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> latest = "";
+    Result res = __remove_unfinished_gen ();
+    if (res != Ok)
+      return res;
 
-    snapper_root.for_each_entry ([&latest] (Genode::Directory::Entry &e) {
-      if (latest == "" || e.name () > latest)
-        {
-          latest = e.name ();
-        }
-    });
+    res = __init_gen ();
+    if (res != Ok)
+      return res;
 
-    if (latest != "")
-      {
-        Genode::Path<Vfs::MAX_PATH_LEN> old
-            = Genode::Directory::join (latest, "archive");
-        if (!snapper_root.directory_exists (old))
-          {
-            snapper_root.unlink (latest);
-            if (snapper_root.directory_exists (latest))
-              {
-                Genode::error ("Could not remove old generation: ", latest);
-                return CouldNotRemoveDir;
-              }
-          }
-      }
+    res = __load_gen ();
 
-#ifdef VERBOSE
-    Genode::log ("old, unfinished generations cleaned");
-#endif // VERBOSE
-
-    // create generation directory
-    Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> timestamp
-        = timestamp_to_str (rtc.current_time ());
-
-    snapper_root.create_sub_directory (timestamp);
-    if (!snapper_root.directory_exists (timestamp))
-      {
-        Genode::error ("Could not create generation directory: ", timestamp);
-        return CouldNotCreateDir;
-      }
-
-    generation.construct (snapper_root, timestamp);
-
-    // create dir "current/snapshot"
-    generation->create_sub_directory ("snapshot");
-    if (!generation->directory_exists ("snapshot"))
-      {
-        Genode::error ("Could not create snapshot directory: ", timestamp,
-                       "/snapshot");
-        return CouldNotCreateDir;
-      }
-
-    snapshot.construct (*generation, Genode::Path<11> ("snapshot"));
-    snapshot_dir_path = Genode::Directory::join (latest, "snapshot");
-
-    // check if there is a prior generation and load its
-    // archive file
-    latest = "";
-
-    TODO ("check whether archive file has a valid crc");
-    snapper_root.for_each_entry (
-        [this, &latest] (Genode::Directory::Entry &e) {
-          if (latest == "" || e.name () > latest)
-            {
-              if (snapper_root.file_exists (
-                      Genode::Directory::join (e.name (), "archive")))
-                {
-                  latest = e.name ();
-                }
-            }
-        });
-
-    if (latest != "")
-      {
-        try
-          {
-            Genode::Readonly_file archive_file (
-                snapper_root, Genode::Directory::join (latest, "archive"));
-
-            Genode::Readonly_file::At pos (5);
-
-            char _key_buf[sizeof (Archive::ArchiveKey)];
-            char _val_buf[Vfs::MAX_PATH_LEN];
-
-            Genode::Byte_range_ptr key_buf (_key_buf, sizeof (_key_buf));
-            Genode::Byte_range_ptr val_buf (_val_buf, sizeof (_val_buf));
-
-            do
-              {
-                Genode::size_t bytes_read = archive_file.read (pos, key_buf);
-                if (bytes_read == 0)
-                  {
-                    TODO ("handle invalid archive entry");
-                    Genode::error ("archive entry is invalid");
-                    break;
-                  }
-
-                pos.value += bytes_read;
-
-                bytes_read = archive_file.read (pos, val_buf);
-                if (bytes_read == 0)
-                  break;
-
-                pos.value += bytes_read;
-
-                Archive::ArchiveElement _ (
-                  *(reinterpret_cast<Archive::ArchiveKey *> (key_buf.start)),
-                    val_buf.start, archiver->archive);
-              }
-            while (true);
-          }
-        catch (Genode::File::Open_failed)
-          {
-            Genode::error ("Failed to open archive file of generation: ",
-                           latest);
-            TODO ("handle recovery is not possible");
-          }
-      }
-
-    return Ok;
+    return res;
   }
 
   Snapper::Result
@@ -236,11 +128,14 @@ namespace SnapperNS
             }
           catch (Genode::File::Open_failed)
             {
-              new_file_needed = true;
+              TODO ("check other files in the mapping");
 
-#ifdef VERBOSE
-              Genode::log ("Failed to open snapshot file: ", element.value);
-#endif // VERBOSE
+              Genode::error ("Failed to open snapshot file: ", element.value);
+
+              if (SNAPPER_INTEGR)
+                throw CrashStates::INVALID_ARCHIVE_ENTRY;
+
+              new_file_needed = true;
             }
         },
         [&new_file_needed] () { new_file_needed = true; });
@@ -256,7 +151,7 @@ namespace SnapperNS
         if (!snapshot->directory_exists ("ext"))
           {
             Genode::error ("Could not create extender sub-directory!");
-            TODO ("handle snapshot not possible!");
+            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
 
         snapshot.construct (*snapshot, "ext");
@@ -278,7 +173,7 @@ namespace SnapperNS
         if (res != Genode::New_file::Append_result::OK)
           {
             Genode::error ("Could not write version to file: ", filepath_base);
-            TODO ("handle snapshot not possible!");
+            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
 
         // writing reference count
@@ -289,7 +184,7 @@ namespace SnapperNS
           {
             Genode::error ("Could not write reference count to file: ",
                            filepath_base);
-            TODO ("handle snapshot not possible!");
+            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
 
         // writing crc
@@ -298,8 +193,7 @@ namespace SnapperNS
         if (res != Genode::New_file::Append_result::OK)
           {
             Genode::error ("Could not write CRC to file: ", filepath_base);
-
-            TODO ("handle snapshot not possible!");
+            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
 
         // writing payload
@@ -308,13 +202,13 @@ namespace SnapperNS
         if (res != Genode::New_file::Append_result::OK)
           {
             Genode::error ("Could not write payload to file: ", filepath_base);
-            TODO ("handle snapshot not possible!");
+            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
       }
     catch (Genode::New_file::Create_failed)
       {
         Genode::error ("Could not create file: ", filepath_base);
-        TODO ("handle snapshot not possible!");
+        throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
       }
 
     // save the snapshot file's path into the archive (relative to
@@ -325,11 +219,166 @@ namespace SnapperNS
 
     archiver->archive.with_element (
         identifier,
-        [filepath] (Archive::ArchiveElement &value) { value.value = filepath; },
+        [filepath] (Archive::ArchiveElement &value) {
+          value.value = filepath;
+        },
         [this, identifier, filepath] () {
-          Archive::ArchiveElement _ (identifier, filepath.string (), archiver->archive);
+          Archive::ArchiveElement _ (identifier, filepath.string (),
+                                     archiver->archive);
         });
 
+    return Ok;
+  }
+
+  /*
+   * HELPER FUNCTIONS
+   */
+
+  Snapper::Result
+  Snapper::__remove_unfinished_gen (void)
+  {
+    Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> latest = "";
+
+    snapper_root.for_each_entry ([&latest] (Genode::Directory::Entry &e) {
+      if (latest == "" || e.name () > latest)
+        {
+          latest = e.name ();
+        }
+    });
+
+    if (latest != "")
+      {
+        Genode::Path<Vfs::MAX_PATH_LEN> old
+            = Genode::Directory::join (latest, "archive");
+        if (!snapper_root.directory_exists (old))
+          {
+            snapper_root.unlink (latest);
+            if (snapper_root.directory_exists (latest))
+              {
+                Genode::error ("Could not remove old generation: ", latest);
+                return InitFailed;
+              }
+          }
+      }
+
+#ifdef VERBOSE
+    Genode::log ("No unfinished generation remain.");
+#endif // VERBOSE
+
+    return Ok;
+  }
+
+  Snapper::Result
+  Snapper::__init_gen (void)
+  {
+    Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> timestamp
+        = timestamp_to_str (rtc.current_time ());
+
+    snapper_root.create_sub_directory (timestamp);
+    if (!snapper_root.directory_exists (timestamp))
+      {
+        Genode::error ("Could not create generation directory: ", timestamp);
+        return InitFailed;
+      }
+
+    generation.construct (snapper_root, timestamp);
+
+    generation->create_sub_directory ("snapshot");
+    if (!generation->directory_exists ("snapshot"))
+      {
+        Genode::error ("Could not create snapshot directory: ", timestamp,
+                       "/snapshot");
+        return InitFailed;
+      }
+
+    Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> latest = "";
+
+    snapshot.construct (*generation, Genode::Path<11> ("snapshot"));
+    snapshot_dir_path = Genode::Directory::join (latest, "snapshot");
+
+    return Ok;
+  }
+
+  Snapper::Result
+  Snapper::__load_gen (
+      const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
+          &generation)
+  {
+    Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> latest
+        = generation;
+
+    if (latest == "")
+      {
+        TODO ("check whether archive file has a valid crc");
+        snapper_root.for_each_entry (
+            [this, &latest] (Genode::Directory::Entry &e) {
+              if (latest == "" || e.name () > latest)
+                {
+                  if (snapper_root.file_exists (
+                          Genode::Directory::join (e.name (), "archive")))
+                    {
+                      latest = e.name ();
+                    }
+                }
+            });
+      }
+
+    if (latest != "")
+      {
+        try
+          {
+            Genode::Readonly_file archive_file (
+                snapper_root, Genode::Directory::join (latest, "archive"));
+
+            Genode::Readonly_file::At pos (5);
+
+            char _key_buf[sizeof (Archive::ArchiveKey)];
+            char _val_buf[Vfs::MAX_PATH_LEN];
+
+            Genode::Byte_range_ptr key_buf (_key_buf, sizeof (_key_buf));
+            Genode::Byte_range_ptr val_buf (_val_buf, sizeof (_val_buf));
+
+            do
+              {
+                Genode::size_t bytes_read = archive_file.read (pos, key_buf);
+                if (bytes_read == 0)
+                  {
+                    Genode::error ("Archive entry is invalid!");
+                    if (SNAPPER_INTEGR)
+                      {
+                        throw CrashStates::INVALID_ARCHIVE_ENTRY;
+                      }
+
+                    return LoadGenFailed;
+                  }
+
+                pos.value += bytes_read;
+
+                bytes_read = archive_file.read (pos, val_buf);
+                if (bytes_read == 0)
+                  break;
+
+                pos.value += bytes_read;
+
+                Archive::ArchiveElement _ (
+                    *(reinterpret_cast<Archive::ArchiveKey *> (key_buf.start)),
+                    val_buf.start, archiver->archive);
+              }
+            while (true);
+          }
+        catch (Genode::File::Open_failed)
+          {
+            Genode::error ("Failed to open archive file of generation: ",
+                           latest);
+
+            if (SNAPPER_INTEGR)
+              {
+                throw CrashStates::INVALID_ARCHIVE_FILE;
+              }
+
+            return LoadGenFailed;
+          }
+      }
     return Ok;
   }
 
