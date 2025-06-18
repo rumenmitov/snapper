@@ -55,16 +55,17 @@ using namespace SnapperNS;
 void
 test_snapshot_creation (void)
 {
-  snapper->init_snapshot ();
+  bool init = snapper->init_snapshot () == Snapper::Ok;
 
-  TODO ("take snapshot of pages");
+  int mytestkey = 1;
+  int mytestval = 5;
+  bool snapshot
+      = snapper->take_snapshot (&mytestval, sizeof (mytestval), mytestkey)
+        == Snapper::Ok;
 
-  int mytest = 5;
-  snapper->take_snapshot (&mytest, sizeof (mytest), 1);
+  bool commit = snapper->commit_snapshot () == Snapper::Ok;
 
-  snapper->commit_snapshot ();
-
-  TEST (true);
+  TEST (init && snapshot && commit);
 }
 
 void

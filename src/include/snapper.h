@@ -51,7 +51,7 @@ namespace SnapperNS
     /**
      * @brief Stores the configuration for the Snapper object.
      */
-    struct Config 
+    struct Config
     {
       bool verbose = false;
       bool integrity = true;
@@ -95,7 +95,7 @@ namespace SnapperNS
     /**
      * @brief Creates a new singleton of Snapper.
      */
-    static Snapper *new_snapper (Genode::Env &, const Config&);
+    static Snapper *new_snapper (Genode::Env &, const Config &);
 
     /**
      * @brief Begins the snapshot process.
@@ -112,12 +112,10 @@ namespace SnapperNS
     /**
      * @brief Completes the snapshot process by saving the archiver's
      * contents into the archive file.
+     *
+     * @throw SNAPSHOT_NOT_POSSIBLE
      */
-    void
-    commit_snapshot ()
-    {
-      TODO (__PRETTY_FUNCTION__);
-    }
+    Result commit_snapshot (void);
 
     /**
      * @brief Begin the restoration of a generation. If a generation is
@@ -143,7 +141,7 @@ namespace SnapperNS
     }
 
   private:
-    Snapper (Genode::Env &, const Config&);
+    Snapper (Genode::Env &, const Config &);
     Snapper (const Snapper &) = delete;
     Snapper operator= (Snapper &) = delete;
 
@@ -166,6 +164,7 @@ namespace SnapperNS
     Genode::Reconstructible<Genode::Directory> snapshot;
     Genode::String<Vfs::MAX_PATH_LEN> snapshot_dir_path;
     Genode::uint64_t snapshot_file_count = 0;
+    Genode::uint64_t total_snapshot_objects = 0;
 
     Config snapper_config;
     Genode::Reconstructible<Archive> archiver;
@@ -191,6 +190,14 @@ namespace SnapperNS
     Result __load_gen (
         const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
             & = "");
+
+    /**
+     * @brief Aborts the snapshot by removing the snapshot and
+     *        generation directories.
+    */
+    void
+    __abort_snapshot (void);
+    
   };
 
 } // namespace SnapperNS

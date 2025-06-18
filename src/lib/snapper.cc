@@ -1,3 +1,4 @@
+#include <base/allocator.h>
 #include <util/construct_at.h>
 #include <vfs/directory_service.h>
 #include <vfs/vfs_handle.h>
@@ -143,6 +144,10 @@ namespace SnapperNS
 
     // create a new snapshot file and write to it the payload metadata
     // and the payload data
+
+    total_snapshot_objects++;
+    snapshot_file_count++;
+
     if (snapshot_file_count >= SNAPPER_THRESH)
       {
         snapshot->create_sub_directory ("ext");
@@ -225,6 +230,150 @@ namespace SnapperNS
                                      archiver->archive);
         });
 
+    return Ok;
+  }
+
+  Snapper::Result
+  Snapper::commit_snapshot (void)
+  {
+    if (state != Creation)
+      return InvalidState;
+
+    if (!generation.constructed ())
+      {
+        Genode::error ("Generation object was not constructed!");
+        return InvalidState;
+      }
+
+    try
+      {
+        Genode::New_file archive (*generation, "archive");
+
+        if (!archiver.constructed ())
+          {
+            if (snapper_config.verbose)
+              {
+                Genode::log ("Archiver is empty! Aborting the snapshot.");
+              }
+
+            __abort_snapshot ();
+          }
+
+        constexpr Genode::size_t key_size = sizeof (Archive::ArchiveKey);
+
+        constexpr Genode::size_t val_size
+            = sizeof (Archive::ArchiveElement::value);
+
+        constexpr Genode::size_t size = key_size + val_size;
+
+        char *_archive_buf
+            = (char *)heap.alloc (size * total_snapshot_objects);
+
+        Genode::memset (_archive_buf, 0, size);
+
+        Genode::uint64_t idx = 0;
+
+        archiver->archive.for_each (
+            [&_archive_buf, &idx] (const Archive::ArchiveElement &element) {
+              Genode::memcpy (_archive_buf + (idx * size), &element.name,
+                              key_size);
+
+              Genode::memcpy (_archive_buf + (idx * size + key_size),
+                              &element.value, val_size);
+            });
+
+        Genode::uint64_t crc;
+        TODO ("calculate CRC of archive");
+
+        Genode::New_file::Append_result res
+            = archive.append ((char *)&Version, sizeof (decltype (Version)));
+
+        if (res != Genode::New_file::Append_result::OK)
+          {
+            Genode::error ("Failed to write the version to the archive file! "
+                           "Aborting the snapshot!");
+
+            __abort_snapshot ();
+
+            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
+          }
+
+        res = archive.append ((char *)&crc, sizeof (decltype (crc)));
+        if (res != Genode::New_file::Append_result::OK)
+          {
+            Genode::error ("Failed to write the CRC to the archive file! "
+                           "Aborting the snapshot!");
+
+            __abort_snapshot ();
+
+            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
+          }
+
+        for (Genode::uint64_t i = 0; i < total_snapshot_objects; i++)
+          {
+            res = archive.append (_archive_buf + (i * size), key_size);
+
+            if (res != Genode::New_file::Append_result::OK)
+              {
+                Genode::error (
+                    "Failed to write the archive entry to the archive file! "
+                    "Aborting the snapshot!");
+
+                __abort_snapshot ();
+
+                throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
+              }
+
+            res = archive.append (_archive_buf + (i * size + key_size), val_size);
+
+            if (res != Genode::New_file::Append_result::OK)
+              {
+                Genode::error (
+                    "Failed to write the archive entry to the archive file! "
+                    "Aborting the snapshot!");
+
+                __abort_snapshot ();
+
+                throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
+              }
+          }
+      }
+    catch (Genode::New_file::Create_failed)
+      {
+        Genode::error ("Failed to create archive file for this generation! "
+                       "Aborting the snapshot!");
+
+        __abort_snapshot ();
+
+        throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
+      }
+    catch (Genode::Out_of_ram)
+      {
+        Genode::error ("Snapper is out of RAM! Aborting the snapshot!");
+        __abort_snapshot ();
+
+        throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
+      }
+    catch (Genode::Out_of_caps)
+      {
+        Genode::error (
+            "Snapper is out of capabilities! Aborting the snapshot!");
+        __abort_snapshot ();
+
+        throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
+      }
+    catch (Genode::Denied)
+      {
+        Genode::error ("Memory allocation denied! Aborting the snapshot!");
+        __abort_snapshot ();
+
+        throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
+      }
+
+    if (snapper_config.verbose)
+      Genode::log("Generation committed successfully!");
+
+    state = Dormant;
     return Ok;
   }
 
@@ -377,6 +526,28 @@ namespace SnapperNS
           }
       }
     return Ok;
+  }
+
+  void
+  Snapper::__abort_snapshot (void)
+  {
+    if (snapshot.constructed ())
+      {
+        snapshot->unlink ("/");
+        snapshot.destruct ();
+      }
+
+    snapshot_dir_path = "/";
+    snapshot_file_count = 0;
+    total_snapshot_objects = 0;
+
+    if (generation.constructed ())
+      {
+        generation->unlink ("/");
+        generation.destruct ();
+      }
+
+    archiver.destruct ();
   }
 
 } // namespace SnapperNS
