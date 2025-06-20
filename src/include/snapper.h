@@ -23,7 +23,11 @@ namespace SnapperNS
   class Snapper : Genode::Noncopyable
   {
   public:
-    static const Genode::uint8_t Version;
+    typedef Genode::uint32_t CRC;
+    typedef Genode::uint8_t RC;
+    typedef Genode::uint8_t VERSION;
+
+    static const VERSION Version;
 
     enum State
     {
@@ -47,6 +51,7 @@ namespace SnapperNS
       SNAPSHOT_NOT_POSSIBLE,
       INVALID_ARCHIVE_FILE,
       INVALID_ARCHIVE_ENTRY,
+      INVALID_SNAPSHOT_FILE,
     };
 
     /**
@@ -54,9 +59,18 @@ namespace SnapperNS
      */
     struct Config
     {
-      bool verbose = false;
-      bool integrity = true;
+      enum Default
+      {
+        _verbose = false,
+        _redundancy = 3,
+        _integrity = true,
+      };
+
+      bool verbose = _verbose;
+      Genode::uint64_t redundancy = _redundancy;
+      bool integrity = _integrity;
     };
+
 
     /**
      * @brief Keeps track of which files are backing up which virtual
@@ -209,6 +223,15 @@ namespace SnapperNS
      *        generation directories.
      */
     void __abort_snapshot (void);
+
+    /**
+     * @brief Updates the reference counts of all backlinks stored
+     *        in the archiver. Should only be called after the archive file has
+     *        been saved, else if the archive file cannot be saved there could
+     *        be "zombie" snapshot files which will never be removed from the
+     *        file-system!
+     */
+    void __update_references(void);
   };
 
 } // namespace SnapperNS

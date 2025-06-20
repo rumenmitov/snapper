@@ -71,8 +71,8 @@ DEADLINE: <2025-06-16 Mon>
 1. If the _latest_ generation does not have a valid archive file, delete it (the generation is incomplete).
 2. Initialize a new generation directory with an RTC timestamp as the name.
 3. Within the generation directory create the archive file and the snapshot directory.
-4. Check if there is a valid prior generation (based on the timestamps). If there is, load the archive file's data into the ~Snapper::Archiver~ array.
-5. Let h_{i} := ~Snapper::Archiver[i]~. If ~Snapper::Archiver[i]~ contains redundant files, use the /first file/ before the comma.
+4. Check if there is a valid prior generation (based on the timestamps). If there is, load the archive file's data into the ~Snapper::Archiver~.
+5. Let h_{i} := ~Snapper::Archiver[i]~. If ~Snapper::Archiver[i]~ contains backlinks, use the /first backlink/ (i.e. the earliest backlink).
 6. For each p_{i} \in P where the CRC of the file h_{i} does not match the CRC of p_{i} (or h_{i} does not exist):
    1. Create new file, h_{j}, and save the binary contents of p_{i} into this new file.
    2. Initialize the snapshot file with the new CRC of the data, a reference count of 1, and the binary data of p_{i}.
@@ -81,7 +81,7 @@ DEADLINE: <2025-06-16 Mon>
    1. If the file h_{i} has a reference count greater than or equal to *SNAPPER_REDUND*:
       1. Create a new file h_{j} as outlined in Step 6.
       2. Increment the reference count for all files in ~Snapper::Archiver[i]~.
-      2. Update ~Snapper::Archiver[i]~ \gets (/path(/ h_{j} /)/ || ',' || ~Snapper::Archiver[i]~) - i.e. prepend the new file path, separated by a comma, to the string containing the redundant file copies.
+      2. Enqueue /path(/ h_{j} /)/ to ~Snapper::Archiver[i]~.
    2. If the file h_{i} has a reference count lower than *SNAPPER_REDUND*, increment the reference count of it and all other redundant files in ~Snapper::Archiver[i]~.
 8. Save ~Snapper::Archiver~ into the archive file and calculate its CRC.
 
@@ -96,11 +96,11 @@ DEADLINE: <2025-06-23 Mon>
 1. Choose a generation to boot from (by default the latest one).
 2. Check if the generation is valid (i.e. has an archive file with a valid CRC). If not, recovery is not possible.
 3. Load the archive file of the latest valid generation into ~Snapper::Archiver~.
-4. For each h \in ~Snapper::Archiver~ and for each redundant file, h_{i} \in h:
+4. For each h \in ~Snapper::Archiver~ and for each backlink, h_{i} \in h:
    1. Check the CRC with the stored data.
-   2. If h_{i} does not exist or there is a mismatch with the CRC, try the next redundant file.
-   3. If there are no more redundant files to check, respond according to the configured policy.
-   4. If the CRC matches h_{i}, load the data of h_{i} into the corresponding page.
+   2. If h_{i} does not exist or there is a mismatch with the CRC, try the next backlink.
+   3. If there are no more backlinks to check, respond according to the configured policy.
+   4. If the CRC matches h_{i}, load the data of h_{i} into the corresponding page p_{i}.
 
 * TODO [#C] Snapshot Purge
 DEADLINE: <2025-06-23 Mon>
