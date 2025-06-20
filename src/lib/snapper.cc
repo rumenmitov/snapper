@@ -677,6 +677,10 @@ namespace SnapperNS
                 Genode::error ("snapshot file has no version: ",
                                backlink.value);
 
+                snapper_root.unlink (
+                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
+                        backlink.value, ".mod"));
+
                 if (snapper_config.integrity)
                   {
                     throw CrashStates::INVALID_SNAPSHOT_FILE;
@@ -692,7 +696,11 @@ namespace SnapperNS
 
             if (reader.read (pos, crc_buf) == 0)
               {
-                Genode::error ("snapshot file has CRC: ", backlink.value);
+                Genode::error ("snapshot file has no CRC: ", backlink.value);
+
+                snapper_root.unlink (
+                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
+                        backlink.value, ".mod"));
 
                 if (snapper_config.integrity)
                   {
@@ -712,6 +720,10 @@ namespace SnapperNS
                 Genode::error ("snapshot file has no reference count: ",
                                backlink.value);
 
+                snapper_root.unlink (
+                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
+                        backlink.value, ".mod"));
+
                 if (snapper_config.integrity)
                   {
                     throw CrashStates::INVALID_SNAPSHOT_FILE;
@@ -729,7 +741,10 @@ namespace SnapperNS
                                "due to a write error: ",
                                backlink.value);
 
-                snapper_root.unlink (backlink.value);
+                snapper_root.unlink (
+                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
+                        backlink.value, ".mod"));
+
                 if (snapper_config.integrity)
                   {
                     throw CrashStates::INVALID_SNAPSHOT_FILE;
@@ -746,7 +761,10 @@ namespace SnapperNS
                                "due to a write error: ",
                                backlink.value);
 
-                snapper_root.unlink (backlink.value);
+                snapper_root.unlink (
+                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
+                        backlink.value, ".mod"));
+
                 if (snapper_config.integrity)
                   {
                     throw CrashStates::INVALID_SNAPSHOT_FILE;
@@ -759,8 +777,9 @@ namespace SnapperNS
                 = *(reinterpret_cast<Snapper::RC *> (rc_buf.start));
 
             reference_count++;
-            Genode::memcpy(rc_buf.start, &reference_count, sizeof(Snapper::RC));
-            
+            Genode::memcpy (rc_buf.start, &reference_count,
+                            sizeof (Snapper::RC));
+
             res = writer.append (rc_buf.start, rc_buf.num_bytes);
 
             if (res != Genode::New_file::Append_result::OK)
@@ -769,7 +788,10 @@ namespace SnapperNS
                                "due to a write error: ",
                                backlink.value);
 
-                snapper_root.unlink (backlink.value);
+                snapper_root.unlink (
+                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
+                        backlink.value, ".mod"));
+
                 if (snapper_config.integrity)
                   {
                     throw CrashStates::INVALID_SNAPSHOT_FILE;
@@ -777,6 +799,12 @@ namespace SnapperNS
 
                 throw LocalThrow::Continue;
               }
+
+            snapper_root.root_dir ().rename (
+                Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
+                    backlink.value, ".mod")
+                    .string (),
+                backlink.value.string ());
           }
         catch (Genode::Readonly_file::Open_failed)
           {
