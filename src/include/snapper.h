@@ -8,6 +8,7 @@
 #include <os/vfs.h>
 #include <rtc_session/connection.h>
 #include <util/dictionary.h>
+#include <util/fifo.h>
 #include <util/noncopyable.h>
 #include <vfs/simple_env.h>
 #include <vfs/types.h>
@@ -64,23 +65,35 @@ namespace SnapperNS
     struct Archive : Genode::Noncopyable
     {
       typedef Genode::uint64_t ArchiveKey;
-      struct ArchiveElement;
-      typedef Genode::Dictionary<ArchiveElement, ArchiveKey> ArchiveContainer;
+      struct Backlink;
+      struct ArchiveEntry;
+      typedef Genode::Fifo<Backlink> Queue;
+      typedef Genode::Dictionary<ArchiveEntry, ArchiveKey> ArchiveContainer;
 
-      /* INFO
-       * No need to check if element is already present as this
-       * constructor should ONLY be called by the with_element()'s no_match
-       * function.
+      /**
+       * @brief Represents a redundant snapshot file.
        */
-      struct ArchiveElement
-          : Genode::Dictionary<ArchiveElement, ArchiveKey>::Element
+      struct Backlink : Genode::Fifo<Backlink>::Element
       {
         Genode::String<Vfs::MAX_PATH_LEN> value;
 
-        ArchiveElement (
-            ArchiveKey id, const char *value,
-            Genode::Dictionary<ArchiveElement, ArchiveKey> &archive)
-            : Element (archive, id), value (value)
+        Backlink (const Genode::String<Vfs::MAX_PATH_LEN> &value)
+            : value (value)
+        {
+        }
+      };
+
+      /**
+       * @brief Identifies which Backlinks belong to which ArchiveKey.
+       */
+      struct ArchiveEntry
+          : Genode::Dictionary<ArchiveEntry, ArchiveKey>::Element
+      {
+        Queue queue;
+
+        ArchiveEntry (ArchiveKey id, Queue queue,
+                      Genode::Dictionary<ArchiveEntry, ArchiveKey> &archive)
+            : Element (archive, id), queue (queue)
         {
         }
       };
@@ -194,10 +207,8 @@ namespace SnapperNS
     /**
      * @brief Aborts the snapshot by removing the snapshot and
      *        generation directories.
-    */
-    void
-    __abort_snapshot (void);
-    
+     */
+    void __abort_snapshot (void);
   };
 
 } // namespace SnapperNS

@@ -107,7 +107,7 @@ namespace SnapperNS
     if (state != Creation)
       return InvalidState;
 
-    bool new_file_needed = false;
+    bool new_file_needed = true;
     Genode::uint8_t reference_count = 0;
     Genode::uint32_t crc = 0;
 
@@ -117,24 +117,30 @@ namespace SnapperNS
     // matches the calculated crc of the payload.
     archiver->archive.with_element (
         identifier,
-        [this, &new_file_needed] (const Archive::ArchiveElement &element) {
-          try
+        [this, &new_file_needed] (Archive::ArchiveEntry &entry) {
+          while (!entry.queue.empty () || !new_file_needed)
             {
-              Genode::Readonly_file file (snapper_root, element.value);
+              entry.queue.head ([this, &entry, &new_file_needed] (
+                                    Archive::Backlink &backlink) {
+                try
+                  {
+                    Genode::Readonly_file file (snapper_root, backlink.value.string());
 
-              TODO ("read crc and rc of file and decide whether it needs to "
-                    "be updated");
-            }
-          catch (Genode::File::Open_failed)
-            {
-              TODO ("check other files in the mapping");
+                    TODO ("read crc and rc of file and decide whether it "
+                          "needs to be updated");
 
-              Genode::error ("Failed to open snapshot file: ", element.value);
+                    new_file_needed = false;
+                  }
+                catch (Genode::File::Open_failed)
+                  {
 
-              if (SNAPPER_INTEGR)
-                throw CrashStates::INVALID_ARCHIVE_ENTRY;
-
-              new_file_needed = true;
+                    entry.queue.dequeue ([] (Archive::Backlink &backlink) {
+                      Genode::error (
+                          "Failed to open snapshot file: ", backlink.value,
+                          ". Removing it from future backlink queue.");
+                    });
+                  }
+              });
             }
         },
         [&new_file_needed] () { new_file_needed = true; });
@@ -214,20 +220,22 @@ namespace SnapperNS
         throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
       }
 
-    // save the snapshot file's path into the archive (relative to
-    // snapper_root)
+    // save the snapshot file's path (i.e. a backlink) into the archive
+    // (relative to snapper_root)
 
-    Genode::String<Vfs::MAX_PATH_LEN> filepath
-        = Genode::Directory::join (snapshot_dir_path, filepath_base);
+    Archive::Backlink backlink (
+        Genode::Directory::join (snapshot_dir_path, filepath_base));
 
     archiver->archive.with_element (
         identifier,
-        [filepath] (Archive::ArchiveElement &value) {
-          value.value = filepath;
+        [&backlink] (Archive::ArchiveEntry &entry) {
+          entry.queue.enqueue (backlink);
         },
-        [this, identifier, filepath] () {
-          Archive::ArchiveElement _ (identifier, filepath.string (),
-                                     archiver->archive);
+        [this, identifier, &backlink] () {
+          Genode::Fifo<Archive::Backlink> queue;
+          queue.enqueue (backlink);
+
+          Archive::ArchiveEntry _ (identifier, queue, archiver->archive);
         });
 
     return Ok;
@@ -260,26 +268,32 @@ namespace SnapperNS
           }
 
         constexpr Genode::size_t key_size = sizeof (Archive::ArchiveKey);
-
-        constexpr Genode::size_t val_size
-            = sizeof (Archive::ArchiveElement::value);
-
+        constexpr Genode::size_t val_size = sizeof (Archive::Backlink);
         constexpr Genode::size_t size = key_size + val_size;
 
+        /* INFO
+         * Save archive entries into a buffer first, so that the CRC
+         * can be calculated. Then write the buffer to the archive
+         * file.
+         */
         char *_archive_buf
             = (char *)heap.alloc (size * total_snapshot_objects);
 
-        Genode::memset (_archive_buf, 0, size);
+        Genode::memset (_archive_buf, 0, size * total_snapshot_objects);
 
         Genode::uint64_t idx = 0;
 
         archiver->archive.for_each (
-            [&_archive_buf, &idx] (const Archive::ArchiveElement &element) {
-              Genode::memcpy (_archive_buf + (idx * size), &element.name,
-                              key_size);
+            [&_archive_buf, &idx] (const Archive::ArchiveEntry &entry) {
+              entry.queue.for_each (
+                  [&_archive_buf, &idx,
+                   &entry] (Archive::Backlink &backlink) {
+                    Genode::memcpy (_archive_buf + (idx * size), &entry.name,
+                                    key_size);
 
-              Genode::memcpy (_archive_buf + (idx * size + key_size),
-                              &element.value, val_size);
+                    Genode::memcpy (_archive_buf + (idx * size + key_size),
+                                    backlink.value.string (), val_size);
+                  });
             });
 
         Genode::uint64_t crc;
@@ -309,33 +323,17 @@ namespace SnapperNS
             throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
 
-        for (Genode::uint64_t i = 0; i < total_snapshot_objects; i++)
+        res = archive.append (_archive_buf, size * total_snapshot_objects);
+
+        if (res != Genode::New_file::Append_result::OK)
           {
-            res = archive.append (_archive_buf + (i * size), key_size);
+            Genode::error (
+                "Failed to write the archive entry to the archive file! "
+                "Aborting the snapshot!");
 
-            if (res != Genode::New_file::Append_result::OK)
-              {
-                Genode::error (
-                    "Failed to write the archive entry to the archive file! "
-                    "Aborting the snapshot!");
+            __abort_snapshot ();
 
-                __abort_snapshot ();
-
-                throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-              }
-
-            res = archive.append (_archive_buf + (i * size + key_size), val_size);
-
-            if (res != Genode::New_file::Append_result::OK)
-              {
-                Genode::error (
-                    "Failed to write the archive entry to the archive file! "
-                    "Aborting the snapshot!");
-
-                __abort_snapshot ();
-
-                throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-              }
+            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
       }
     catch (Genode::New_file::Create_failed)
@@ -371,7 +369,7 @@ namespace SnapperNS
       }
 
     if (snapper_config.verbose)
-      Genode::log("Generation committed successfully!");
+      Genode::log ("Generation committed successfully!");
 
     state = Dormant;
     return Ok;
@@ -469,62 +467,78 @@ namespace SnapperNS
             });
       }
 
-    if (latest != "")
+    if (latest == "")
+      return Ok;
+
+    try
       {
-        try
+        Genode::Readonly_file archive_file (
+            snapper_root, Genode::Directory::join (latest, "archive"));
+
+        TODO ("read and check version");
+        TODO ("read and check crc");
+
+        Genode::Readonly_file::At pos (5);
+
+        char _key_buf[sizeof (Archive::ArchiveKey)];
+        char _val_buf[Vfs::MAX_PATH_LEN];
+
+        Genode::Byte_range_ptr key_buf (_key_buf, sizeof (_key_buf));
+        Genode::Byte_range_ptr val_buf (_val_buf, sizeof (_val_buf));
+
+        do
           {
-            Genode::Readonly_file archive_file (
-                snapper_root, Genode::Directory::join (latest, "archive"));
-
-            Genode::Readonly_file::At pos (5);
-
-            char _key_buf[sizeof (Archive::ArchiveKey)];
-            char _val_buf[Vfs::MAX_PATH_LEN];
-
-            Genode::Byte_range_ptr key_buf (_key_buf, sizeof (_key_buf));
-            Genode::Byte_range_ptr val_buf (_val_buf, sizeof (_val_buf));
-
-            do
+            Genode::size_t bytes_read = archive_file.read (pos, key_buf);
+            if (bytes_read == 0)
               {
-                Genode::size_t bytes_read = archive_file.read (pos, key_buf);
-                if (bytes_read == 0)
+                Genode::error ("Archive entry is invalid!");
+                if (snapper_config.integrity)
                   {
-                    Genode::error ("Archive entry is invalid!");
-                    if (snapper_config.integrity)
-                      {
-                        throw CrashStates::INVALID_ARCHIVE_ENTRY;
-                      }
-
-                    return LoadGenFailed;
+                    throw CrashStates::INVALID_ARCHIVE_ENTRY;
                   }
 
-                pos.value += bytes_read;
-
-                bytes_read = archive_file.read (pos, val_buf);
-                if (bytes_read == 0)
-                  break;
-
-                pos.value += bytes_read;
-
-                Archive::ArchiveElement _ (
-                    *(reinterpret_cast<Archive::ArchiveKey *> (key_buf.start)),
-                    val_buf.start, archiver->archive);
-              }
-            while (true);
-          }
-        catch (Genode::File::Open_failed)
-          {
-            Genode::error ("Failed to open archive file of generation: ",
-                           latest);
-
-            if (snapper_config.integrity)
-              {
-                throw CrashStates::INVALID_ARCHIVE_FILE;
+                return LoadGenFailed;
               }
 
-            return LoadGenFailed;
+            pos.value += bytes_read;
+
+            bytes_read = archive_file.read (pos, val_buf);
+            if (bytes_read == 0)
+              break;
+
+            pos.value += bytes_read;
+
+            Archive::ArchiveKey key
+                = *(reinterpret_cast<Archive::ArchiveKey *> (key_buf.start));
+
+            Archive::Backlink backlink ((char const *)val_buf.start);
+
+            archiver->archive.with_element (
+                key,
+                [&backlink] (Archive::ArchiveEntry &entry) {
+                  entry.queue.enqueue (backlink);
+                },
+                [this, &key, &backlink] () {
+                  Genode::Fifo<Archive::Backlink> new_queue;
+                  new_queue.enqueue (backlink);
+
+                  Archive::ArchiveEntry _ (key, new_queue, archiver->archive);
+                });
           }
+        while (true);
       }
+    catch (Genode::File::Open_failed)
+      {
+        Genode::error ("Failed to open archive file of generation: ", latest);
+
+        if (snapper_config.integrity)
+          {
+            throw CrashStates::INVALID_ARCHIVE_FILE;
+          }
+
+        return LoadGenFailed;
+      }
+
     return Ok;
   }
 
