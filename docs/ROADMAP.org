@@ -63,7 +63,7 @@ Note, this test requires an archive of two valid generations. Both generations a
 4. Recover each file from the non-purged generation into an element in the array.
 5. If test is successful, the array should store all numbers from 1 to 1000 in ascending order.
 
-* TODO [#B] Snapshot Creation
+* DONE [#B] Snapshot Creation
 DEADLINE: <2025-06-16 Mon>
 :PROPERTIES:
 :Effort:   10

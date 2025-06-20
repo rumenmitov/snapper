@@ -86,6 +86,8 @@ namespace SnapperNS
       return InvalidState;
 
     state = Creation;
+    snapshot_file_count = 0;
+    total_snapshot_objects = 0;
 
     Result res = __remove_unfinished_gen ();
     if (res != Ok)
@@ -456,6 +458,29 @@ namespace SnapperNS
 
     state = Dormant;
     return Ok;
+  }
+
+  /*
+   * RESTORING SNAPSHOT
+   */
+
+  Snapper::Result
+  Snapper::open_generation (
+      const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
+          &generation)
+  {
+    if (state != Dormant)
+      return InvalidState;
+
+    state = Restoration;
+
+    Result res = __remove_unfinished_gen ();
+    if (res != Ok)
+      return res;
+
+    res = __load_gen (generation);
+
+    return res;
   }
 
   /*

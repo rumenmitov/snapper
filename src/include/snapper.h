@@ -148,12 +148,9 @@ namespace SnapperNS
      * @brief Begin the restoration of a generation. If a generation is
      *        not specified, the latest one will be used.
      */
-    void
+    Result
     open_generation (const Genode::String<
-                         Vfs::Directory_service::Dirent::Name::MAX_LEN> & = "")
-    {
-      TODO (__PRETTY_FUNCTION__);
-    }
+                     Vfs::Directory_service::Dirent::Name::MAX_LEN> & = "");
 
     void
     restore ()
