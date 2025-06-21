@@ -380,6 +380,8 @@ namespace SnapperNS
             });
 
         Snapper::CRC crc;
+        Snapper::RC rc = 0;
+        
         TODO ("calculate CRC of archive");
 
         Genode::New_file::Append_result res
@@ -406,6 +408,17 @@ namespace SnapperNS
             throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
 
+        res = archive.append ((char *)&rc, sizeof (Snapper::RC));
+        if (res != Genode::New_file::Append_result::OK)
+          {
+            Genode::error ("Failed to write the reference count to the archive file! "
+                           "Aborting the snapshot!");
+
+            __abort_snapshot ();
+
+            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
+          }
+
         res = archive.append (_archive_buf, size * total_snapshot_objects);
 
         if (res != Genode::New_file::Append_result::OK)
@@ -418,6 +431,9 @@ namespace SnapperNS
 
             throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
+
+        heap.free(_archive_buf, size * total_snapshot_objects);
+        
       }
     catch (Genode::New_file::Create_failed)
       {
@@ -430,7 +446,7 @@ namespace SnapperNS
       }
     catch (Genode::Out_of_ram)
       {
-        Genode::error ("Snapper is out of RAM! Aborting the snapshot!");
+        Genode::error ("snapper is out of RAM! Aborting the snapshot!");
         __abort_snapshot ();
 
         throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
@@ -438,14 +454,14 @@ namespace SnapperNS
     catch (Genode::Out_of_caps)
       {
         Genode::error (
-            "Snapper is out of capabilities! Aborting the snapshot!");
+            "snapper is out of capabilities! Aborting the snapshot!");
         __abort_snapshot ();
 
         throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
       }
     catch (Genode::Denied)
       {
-        Genode::error ("Memory allocation denied! Aborting the snapshot!");
+        Genode::error ("memory allocation denied! Aborting the snapshot!");
         __abort_snapshot ();
 
         throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
@@ -757,6 +773,50 @@ namespace SnapperNS
                 throw LocalThrow::Continue;
               }
 
+            pos.value += sizeof (Snapper::RC);
+
+            Vfs::Dir_file_system::Stat stats;
+            if (snapper_root.root_dir ().stat (backlink.value.string (), stats)
+                != Vfs::Dir_file_system::STAT_OK)
+              {
+                Genode::error ("failed to get stats for file: ",
+                               backlink.value);
+
+                snapper_root.unlink (
+                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
+                        backlink.value, ".mod"));
+
+                if (snapper_config.integrity)
+                  {
+                    throw CrashStates::INVALID_SNAPSHOT_FILE;
+                  }
+
+                throw LocalThrow::Continue;
+              }
+
+            Genode::uint64_t _data_size
+                = stats.size - sizeof (Snapper::VERSION)
+                  - sizeof (Snapper::CRC) - sizeof (Snapper::RC);
+
+            char *_data_buf = (char *)heap.alloc (_data_size);
+            Genode::Byte_range_ptr data_buf (_data_buf, _data_size);
+
+            if (reader.read (pos, data_buf) == 0)
+              {
+                Genode::error ("snapshot file has no data: ", backlink.value);
+
+                snapper_root.unlink (
+                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
+                        backlink.value, ".mod"));
+
+                if (snapper_config.integrity)
+                  {
+                    throw CrashStates::INVALID_SNAPSHOT_FILE;
+                  }
+
+                throw LocalThrow::Continue;
+              }
+
             Genode::New_file::Append_result res
                 = writer.append (version_buf.start, version_buf.num_bytes);
 
@@ -825,6 +885,28 @@ namespace SnapperNS
                 throw LocalThrow::Continue;
               }
 
+            res = writer.append (data_buf.start, data_buf.num_bytes);
+
+            if (res != Genode::New_file::Append_result::OK)
+              {
+                Genode::error ("could not update reference count of backlink "
+                               "due to a write error: ",
+                               backlink.value);
+
+                snapper_root.unlink (
+                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
+                        backlink.value, ".mod"));
+
+                if (snapper_config.integrity)
+                  {
+                    throw CrashStates::INVALID_SNAPSHOT_FILE;
+                  }
+
+                throw LocalThrow::Continue;
+              }
+
+            heap.free (_data_buf, data_buf.num_bytes);
+
             snapper_root.root_dir ().rename (
                 Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
                     backlink.value, ".mod")
@@ -848,6 +930,43 @@ namespace SnapperNS
           {
             Genode::error ("backlink should not be created here! This should "
                            "be an unreachable state!");
+
+            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
+          }
+        catch (Genode::Out_of_ram)
+          {
+            Genode::error ("snapper is out of RAM! Aborting the snapshot!");
+
+            snapper_root.root_dir ().rename (
+                Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
+                    backlink.value, ".mod")
+                    .string (),
+                backlink.value.string ());
+
+            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
+          }
+        catch (Genode::Out_of_caps)
+          {
+            Genode::error (
+                "snapper is out of capabilities! Aborting the snapshot!");
+
+            snapper_root.root_dir ().rename (
+                Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
+                    backlink.value, ".mod")
+                    .string (),
+                backlink.value.string ());
+
+            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
+          }
+        catch (Genode::Denied)
+          {
+            Genode::error ("memory allocation denied! Aborting the snapshot!");
+
+            snapper_root.root_dir ().rename (
+                Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
+                    backlink.value, ".mod")
+                    .string (),
+                backlink.value.string ());
 
             throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
