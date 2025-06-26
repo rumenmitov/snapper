@@ -15,7 +15,7 @@ namespace SnapperNS
 
   void
   Snapper::Archive::insert (const Archive::ArchiveKey key,
-          const Genode::String<Vfs::MAX_PATH_LEN> &val)
+                            const Genode::String<Vfs::MAX_PATH_LEN> &val)
   {
     Snapper::Archive::Backlink *backlink
         = new (snapper->heap) Archive::Backlink (val);
@@ -38,7 +38,8 @@ namespace SnapperNS
 
     if (snapper->snapper_config.verbose)
       {
-        Genode::log ("archive entry inserted: ", key, " -> ", backlink->value);
+        Genode::log ("archive entry inserted: ", key, " -> \"",
+                     backlink->value, "\"");
       }
   }
 

@@ -11,7 +11,7 @@ timestamp_to_str (const Rtc::Timestamp &ts)
 {
   Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> str (
       ts.year, "-", ts.month, "-", ts.day, " ", ts.hour, ":", ts.minute, ":",
-      ts.second, ":", ts.microsecond);
+      ts.second);
 
   return str;
 }
