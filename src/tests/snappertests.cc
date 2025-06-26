@@ -104,10 +104,9 @@ test_unsuccessful_recovery (void)
 void
 test_snapshot_purge (void)
 {
-  IGNORE;
-  snapper->purge ();
+  bool ok = snapper->purge () == Snapper::Ok;
 
-  TEST (true);
+  TEST (ok);
 }
 
 void

@@ -352,7 +352,8 @@ namespace SnapperNS
           }
 
         constexpr Genode::size_t key_size = sizeof (Archive::ArchiveKey);
-        constexpr Genode::size_t val_size = sizeof (decltype(Archive::Backlink::value));
+        constexpr Genode::size_t val_size
+            = sizeof (decltype (Archive::Backlink::value));
         constexpr Genode::size_t size = key_size + val_size;
 
         /* INFO
@@ -407,7 +408,6 @@ namespace SnapperNS
 
             throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
-
 
         res = archive.append (_archive_buf, size * total_snapshot_objects);
 
@@ -552,6 +552,105 @@ namespace SnapperNS
       archiver.destruct ();
 
     return Ok;
+  }
+
+  Snapper::Result
+  Snapper::purge (
+      const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
+          &generation)
+  {
+    if (state != Dormant)
+      {
+        return InvalidState;
+      }
+
+    state = Purge;
+    Snapper::Result res = Ok;
+
+    Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> _gen
+        = generation;
+
+    if (_gen == "")
+      {
+        snapper_root.for_each_entry ([&_gen] (Genode::Directory::Entry &e) {
+          if (_gen == "" || _gen > e.name ())
+            {
+              _gen = e.name ();
+            }
+        });
+      }
+
+    if (_gen == "")
+      {
+        if (snapper->snapper_config.verbose)
+          Genode::log ("no generation exists for purging");
+
+        goto CLEAN_RET;
+      }
+
+    res = __load_gen (_gen);
+    if (res != Ok)
+      goto CLEAN_RET;
+
+    archiver->archive.for_each ([this] (const Archive::ArchiveEntry &entry) {
+
+      // decrement each backlink's reference count
+      entry.queue.for_each ([this] (Archive::Backlink &backlink) {
+        bool remove = false;
+
+        backlink.get_reference_count ().with_result (
+            [&backlink, &remove] (Snapper::RC reference_count) {
+              reference_count--;
+
+              // if the reference count is 0 or less, remove the
+              // backlink
+              if (reference_count > 0)
+                {
+                  if (backlink.set_reference_count (reference_count).failed ())
+                    {
+                      if (snapper->snapper_config.integrity)
+                        throw CrashStates::REF_COUNT_FAILED;
+
+                      remove = true;
+                    }
+                }
+              else
+                remove = true;
+            },
+            [&remove] (Archive::Backlink::Error) {
+              if (snapper->snapper_config.integrity)
+                throw CrashStates::REF_COUNT_FAILED;
+
+              remove = true;
+            });
+
+        if (remove)
+          {
+            snapper_root.unlink (backlink.value);
+            if (snapper_root.file_exists (backlink.value))
+              {
+                Genode::error (
+                    "could not remove file (requires manual deletion): ",
+                    backlink.value);
+                throw CrashStates::PURGE_FAILED;
+              }
+          }
+
+        /* INFO
+         * No need to dequeue the Backlink as the entire ArchiveEntry
+         * will be removed.
+         */
+      });
+      archiver->remove(entry.name);
+    });
+
+    TODO("remove empty directories");
+
+    __reset_gen ();
+
+  CLEAN_RET:
+    state = Dormant;
+    return res;
   }
 
   /*

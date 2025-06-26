@@ -93,7 +93,6 @@ namespace SnapperNS
         if (reader.read (pos, rc_buf) == 0)
           {
             Genode::error ("backlink missing reference count: ", value);
-
             return Genode::Attempt<Snapper::RC,
                                    Snapper::Archive::Backlink::Error> (
                 MissingFieldErr);
@@ -103,6 +102,7 @@ namespace SnapperNS
       }
     catch (Genode::Readonly_file::Open_failed)
       {
+        Genode::error("could not open backlink: ", value);
         return Genode::Attempt<Snapper::RC,
                                Snapper::Archive::Backlink::Error> (OpenErr);
       }
@@ -194,7 +194,10 @@ namespace SnapperNS
         });
 
     if (res.failed ())
-      return res;
+      {
+        Genode::error ("couldn't update the reference count of: ", value);
+        return res;
+      }
 
     get_integrity ().with_result (
         [&crc] (Snapper::CRC _crc) { crc = _crc; },
@@ -204,7 +207,10 @@ namespace SnapperNS
         });
 
     if (res.failed ())
-      return res;
+      {
+        Genode::error ("couldn't update the reference count of: ", value);
+        return res;
+      }
 
     Genode::size_t data_size;
 
@@ -216,7 +222,10 @@ namespace SnapperNS
         });
 
     if (res.failed ())
-      return res;
+      {
+        Genode::error ("couldn't update the reference count of: ", value);
+        return res;
+      }
 
     char *_data_buf = (char *)snapper->heap.alloc (data_size);
     Genode::Byte_range_ptr data (_data_buf, data_size);
@@ -224,8 +233,8 @@ namespace SnapperNS
     Snapper::Archive::Backlink::Error err = get_data (data);
     if (err != None)
       {
-        res = Genode::Attempt<Snapper::RC,
-                               Snapper::Archive::Backlink::Error> (err);
+        res = Genode::Attempt<Snapper::RC, Snapper::Archive::Backlink::Error> (
+            err);
 
         goto CLEAN_RET;
       }
@@ -276,8 +285,7 @@ namespace SnapperNS
           }
 
         // data
-        write_res
-            = writer.append (data.start, data.num_bytes);
+        write_res = writer.append (data.start, data.num_bytes);
 
         if (write_res != Genode::New_file::Append_result::OK)
           {
@@ -290,22 +298,22 @@ namespace SnapperNS
       }
     catch (Genode::New_file::Create_failed)
       {
-        res = Genode::Attempt<Snapper::RC,
-                               Snapper::Archive::Backlink::Error> (OpenErr);
+        res = Genode::Attempt<Snapper::RC, Snapper::Archive::Backlink::Error> (
+            OpenErr);
 
         goto CLEAN_RET;
       }
 
   CLEAN_RET:
     if (data.start)
-      snapper->heap.free(data.start, data.num_bytes);
-    
+      snapper->heap.free (data.start, data.num_bytes);
+
     snapper->snapper_root.unlink (
         Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (value, ".mod"));
 
     if (res == WriteErr)
       {
-        Genode::error ("could not write to backlink: ", value);
+        Genode::error ("could not update reference count: ", value);
       }
 
     return res;

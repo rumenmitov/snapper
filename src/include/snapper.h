@@ -57,6 +57,8 @@ namespace SnapperNS
       INVALID_ARCHIVE_FILE,
       INVALID_ARCHIVE_ENTRY,
       INVALID_SNAPSHOT_FILE,
+      REF_COUNT_FAILED,
+      PURGE_FAILED,
     };
 
     /**
@@ -149,7 +151,7 @@ namespace SnapperNS
       /**
        * @brief Inserts entry into the archive. If the key is already
        *        present the entry is prepended to a FIFO queue.
-      */
+       */
       void insert (const ArchiveKey,
                    const Genode::String<Vfs::MAX_PATH_LEN> &);
 
@@ -214,11 +216,13 @@ namespace SnapperNS
      */
     Result close_generation (void);
 
-    void
-    purge ()
-    {
-      TODO (__PRETTY_FUNCTION__);
-    }
+    /**
+     * @brief Remove a specified generation. If no generation is specified,
+     * remove the oldest one.
+     */
+    Result
+    purge (const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
+               & = "");
 
   private:
     Snapper (Genode::Env &, const Config &);
@@ -257,7 +261,7 @@ namespace SnapperNS
     /**
      * @brief Reset the Snapper state to defaults.
      */
-    void __reset_gen(void);
+    void __reset_gen (void);
 
     /**
      * @brief Tries to load the archive file from the specified
