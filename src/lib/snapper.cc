@@ -5,9 +5,6 @@
 
 #include "snapper.h"
 
-/*
- * UTILITIES
- */
 [[maybe_unused]] static Genode::String<
     Vfs::Directory_service::Dirent::Name::MAX_LEN>
 timestamp_to_str (const Rtc::Timestamp &ts)
@@ -56,7 +53,7 @@ namespace SnapperNS
     instance = nullptr;
 
     if (snapper_config.verbose)
-      Genode::log ("Snapper object destroyed.");
+      Genode::log ("snapper object destroyed.");
   }
 
   Snapper *
@@ -71,7 +68,7 @@ namespace SnapperNS
     Snapper::instance = &local_snapper;
 
     if (config.verbose)
-      Genode::log ("New snapper object created.");
+      Genode::log ("new snapper object created.");
 
     return Snapper::instance;
   }
@@ -148,8 +145,10 @@ namespace SnapperNS
                       {
                         entry.queue.dequeue ([] (Archive::Backlink &backlink) {
                           Genode::error (
-                              "Snapshot file has no version: ", backlink.value,
+                              "snapshot file has no version: ", backlink.value,
                               ". Removing it from future backlink queue.");
+
+                          Genode::destroy (snapper->heap, backlink._self);
                         });
                       }
 
@@ -160,9 +159,11 @@ namespace SnapperNS
                       {
                         entry.queue.dequeue ([] (Archive::Backlink &backlink) {
                           Genode::error (
-                              "Snapshot file has an invalid version: ",
+                              "snapshot file has an invalid version: ",
                               backlink.value,
                               ". Removing it from future backlink queue.");
+
+                          Genode::destroy (snapper->heap, backlink._self);
                         });
                       }
 
@@ -176,9 +177,11 @@ namespace SnapperNS
                       {
                         entry.queue.dequeue ([] (Archive::Backlink &backlink) {
                           Genode::error (
-                              "Snapshot file has no CRC value: ",
+                              "snapshot file has no CRC value: ",
                               backlink.value,
                               ". Removing it from future backlink queue.");
+
+                          Genode::destroy (snapper->heap, backlink._self);
                         });
                       }
 
@@ -196,9 +199,11 @@ namespace SnapperNS
                       {
                         entry.queue.dequeue ([] (Archive::Backlink &backlink) {
                           Genode::error (
-                              "Snapshot file has no reference count: ",
+                              "snapshot file has no reference count: ",
                               backlink.value,
                               ". Removing it from future backlink queue.");
+
+                          Genode::destroy (snapper->heap, backlink._self);
                         });
                       }
 
@@ -210,7 +215,7 @@ namespace SnapperNS
                         if (snapper_config.verbose)
                           {
                             Genode::log (
-                                "Reference count exceeds redundancy level. "
+                                "reference count exceeds redundancy level. "
                                 "Creating a redundant backlink.");
                           }
 
@@ -225,8 +230,10 @@ namespace SnapperNS
                   {
                     entry.queue.dequeue ([] (Archive::Backlink &backlink) {
                       Genode::error (
-                          "Failed to open snapshot file: ", backlink.value,
+                          "failed to open snapshot file: ", backlink.value,
                           ". Removing it from future backlink queue.");
+
+                      Genode::destroy (snapper->heap, backlink._self);
                     });
                   }
               });
@@ -248,7 +255,7 @@ namespace SnapperNS
         snapshot->create_sub_directory ("ext");
         if (!snapshot->directory_exists ("ext"))
           {
-            Genode::error ("Could not create extender sub-directory!");
+            Genode::error ("could not create extender sub-directory!");
             throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
 
@@ -270,7 +277,7 @@ namespace SnapperNS
 
         if (res != Genode::New_file::Append_result::OK)
           {
-            Genode::error ("Could not write version to file: ", filepath_base);
+            Genode::error ("could not write version to file: ", filepath_base);
             throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
 
@@ -279,7 +286,7 @@ namespace SnapperNS
 
         if (res != Genode::New_file::Append_result::OK)
           {
-            Genode::error ("Could not write CRC to file: ", filepath_base);
+            Genode::error ("could not write CRC to file: ", filepath_base);
             throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
 
@@ -288,7 +295,7 @@ namespace SnapperNS
 
         if (res != Genode::New_file::Append_result::OK)
           {
-            Genode::error ("Could not write reference count to file: ",
+            Genode::error ("could not write reference count to file: ",
                            filepath_base);
             throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
@@ -298,13 +305,13 @@ namespace SnapperNS
 
         if (res != Genode::New_file::Append_result::OK)
           {
-            Genode::error ("Could not write payload to file: ", filepath_base);
+            Genode::error ("could not write payload to file: ", filepath_base);
             throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
       }
     catch (Genode::New_file::Create_failed)
       {
-        Genode::error ("Could not create file: ", filepath_base);
+        Genode::error ("could not create file: ", filepath_base);
         throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
       }
 
@@ -325,7 +332,7 @@ namespace SnapperNS
 
     if (!generation.constructed ())
       {
-        Genode::error ("Generation object was not constructed!");
+        Genode::error ("generation object was not constructed!");
         return InvalidState;
       }
 
@@ -337,7 +344,7 @@ namespace SnapperNS
           {
             if (snapper_config.verbose)
               {
-                Genode::log ("Archiver is empty! Aborting the snapshot.");
+                Genode::log ("archiver is empty! Aborting the snapshot.");
               }
 
             __abort_snapshot ();
@@ -384,7 +391,7 @@ namespace SnapperNS
 
         if (res != Genode::New_file::Append_result::OK)
           {
-            Genode::error ("Failed to write the version to the archive file! "
+            Genode::error ("failed to write the version to the archive file! "
                            "Aborting the snapshot!");
 
             __abort_snapshot ();
@@ -395,7 +402,7 @@ namespace SnapperNS
         res = archive.append ((char *)&crc, sizeof (Snapper::CRC));
         if (res != Genode::New_file::Append_result::OK)
           {
-            Genode::error ("Failed to write the CRC to the archive file! "
+            Genode::error ("failed to write the CRC to the archive file! "
                            "Aborting the snapshot!");
 
             __abort_snapshot ();
@@ -407,7 +414,7 @@ namespace SnapperNS
         if (res != Genode::New_file::Append_result::OK)
           {
             Genode::error (
-                "Failed to write the reference count to the archive file! "
+                "failed to write the reference count to the archive file! "
                 "Aborting the snapshot!");
 
             __abort_snapshot ();
@@ -420,7 +427,7 @@ namespace SnapperNS
         if (res != Genode::New_file::Append_result::OK)
           {
             Genode::error (
-                "Failed to write the archive entry to the archive file! "
+                "failed to write the archive entry to the archive file! "
                 "Aborting the snapshot!");
 
             __abort_snapshot ();
@@ -432,7 +439,7 @@ namespace SnapperNS
       }
     catch (Genode::New_file::Create_failed)
       {
-        Genode::error ("Failed to create archive file for this generation! "
+        Genode::error ("failed to create archive file for this generation! "
                        "Aborting the snapshot!");
 
         __abort_snapshot ();
@@ -465,7 +472,7 @@ namespace SnapperNS
     __update_references ();
 
     if (snapper_config.verbose)
-      Genode::log ("Generation committed successfully!");
+      Genode::log ("generation committed successfully!");
 
     state = Dormant;
     return Ok;
@@ -586,14 +593,14 @@ namespace SnapperNS
             snapper_root.unlink (latest);
             if (snapper_root.directory_exists (latest))
               {
-                Genode::error ("Could not remove old generation: ", latest);
+                Genode::error ("could not remove old generation: ", latest);
                 return InitFailed;
               }
           }
       }
 
     if (snapper_config.verbose)
-      Genode::log ("No unfinished generation remain.");
+      Genode::log ("no unfinished generation remain.");
 
     return Ok;
   }
@@ -607,7 +614,7 @@ namespace SnapperNS
     snapper_root.create_sub_directory (timestamp);
     if (!snapper_root.directory_exists (timestamp))
       {
-        Genode::error ("Could not create generation directory: ", timestamp);
+        Genode::error ("could not create generation directory: ", timestamp);
         return InitFailed;
       }
 
@@ -616,15 +623,13 @@ namespace SnapperNS
     generation->create_sub_directory ("snapshot");
     if (!generation->directory_exists ("snapshot"))
       {
-        Genode::error ("Could not create snapshot directory: ", timestamp,
+        Genode::error ("could not create snapshot directory: ", timestamp,
                        "/snapshot");
         return InitFailed;
       }
 
-    Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> latest = "";
-
     snapshot.construct (*generation, Genode::Path<11> ("snapshot"));
-    snapshot_dir_path = Genode::Directory::join (latest, "snapshot");
+    snapshot_dir_path = Genode::Directory::join (timestamp, "snapshot");
 
     return Ok;
   }
@@ -697,7 +702,7 @@ namespace SnapperNS
       }
     catch (Genode::File::Open_failed)
       {
-        Genode::error ("Failed to open archive file of generation: ", latest);
+        Genode::error ("failed to open archive file of generation: ", latest);
 
         if (snapper_config.integrity)
           {

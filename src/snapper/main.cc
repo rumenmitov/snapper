@@ -18,7 +18,7 @@ Component::construct (Genode::Env &env)
 
   snapper = SnapperNS::Snapper::new_snapper (env, config);
   if (!snapper)
-    Genode::error ("Could not initialize snapper object!");
+    Genode::error ("could not initialize snapper object!");
 
   Genode::log ("snapper exit");
 }

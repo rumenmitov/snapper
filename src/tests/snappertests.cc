@@ -5,8 +5,6 @@
 #include "snapper.h"
 #include "utils.h"
 
-extern "C" void wait_for_continue();
-
 /* Test Stats */
 static unsigned total_tests = 0;
 static unsigned successful_tests = 0;
@@ -127,7 +125,7 @@ Component::construct (Genode::Env &env)
 
   snapper = SnapperNS::Snapper::new_snapper (env, config);
   if (!snapper)
-    Genode::error ("Could not initialize snapper object!");
+    Genode::error ("could not initialize snapper object!");
 
   test_snapshot_creation ();
   test_successful_recovery ();
