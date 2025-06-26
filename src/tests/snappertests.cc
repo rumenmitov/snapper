@@ -79,8 +79,6 @@ test_successful_recovery (void)
   snapper->restore (&vm_pages, size, 1);
   snapper->close_generation ();
 
-  Genode::log (vm_pages[0]);
-
   TEST (vm_pages[0] == 5);
 }
 

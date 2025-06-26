@@ -255,6 +255,11 @@ namespace SnapperNS
     Result __init_gen (void);
 
     /**
+     * @brief Reset the Snapper state to defaults.
+     */
+    void __reset_gen(void);
+
+    /**
      * @brief Tries to load the archive file from the specified
      * generation into archiver.
      *

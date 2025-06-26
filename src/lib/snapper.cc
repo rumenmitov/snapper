@@ -301,7 +301,7 @@ namespace SnapperNS
           }
 
         // writing payload
-        res = file.append ((char *)&payload, size);
+        res = file.append ((char *)payload, size);
 
         if (res != Genode::New_file::Append_result::OK)
           {
@@ -352,7 +352,7 @@ namespace SnapperNS
           }
 
         constexpr Genode::size_t key_size = sizeof (Archive::ArchiveKey);
-        constexpr Genode::size_t val_size = sizeof (Archive::Backlink);
+        constexpr Genode::size_t val_size = sizeof (decltype(Archive::Backlink::value));
         constexpr Genode::size_t size = key_size + val_size;
 
         /* INFO
@@ -369,7 +369,7 @@ namespace SnapperNS
 
         archiver->archive.for_each (
             [&_archive_buf, &idx] (const Archive::ArchiveEntry &entry) {
-              entry.queue.for_each ([&_archive_buf, &idx, &entry] (
+              entry.queue.for_each ([_archive_buf, &idx, &entry] (
                                         const Archive::Backlink &backlink) {
                 Genode::memcpy (_archive_buf + (idx * size), &entry.name,
                                 key_size);
@@ -382,8 +382,6 @@ namespace SnapperNS
             });
 
         Snapper::CRC crc;
-        Snapper::RC rc = 0;
-
         TODO ("calculate CRC of archive");
 
         Genode::New_file::Append_result res
@@ -410,17 +408,6 @@ namespace SnapperNS
             throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
 
-        res = archive.append ((char *)&rc, sizeof (Snapper::RC));
-        if (res != Genode::New_file::Append_result::OK)
-          {
-            Genode::error (
-                "failed to write the reference count to the archive file! "
-                "Aborting the snapshot!");
-
-            __abort_snapshot ();
-
-            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-          }
 
         res = archive.append (_archive_buf, size * total_snapshot_objects);
 
@@ -473,6 +460,8 @@ namespace SnapperNS
 
     if (snapper_config.verbose)
       Genode::log ("generation committed successfully!");
+
+    __reset_gen ();
 
     state = Dormant;
     return Ok;
@@ -541,8 +530,6 @@ namespace SnapperNS
               {
                 res = RestoreFailed;
               }
-
-            Genode::log ("data: ", *((int *)buf.start));
           });
         },
         [&res] () { res = NoMatches; });
@@ -634,11 +621,25 @@ namespace SnapperNS
     return Ok;
   }
 
+  void
+  Snapper::__reset_gen (void)
+  {
+    snapshot_dir_path = "/";
+    snapshot_file_count = 0;
+    total_snapshot_objects = 0;
+
+    generation.destruct ();
+
+    archiver.destruct ();
+  }
+
   Snapper::Result
   Snapper::__load_gen (
       const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
           &generation)
   {
+    archiver.construct ();
+
     Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> latest
         = generation;
 
