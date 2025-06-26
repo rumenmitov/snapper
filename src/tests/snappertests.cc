@@ -5,6 +5,8 @@
 #include "snapper.h"
 #include "utils.h"
 
+extern "C" void wait_for_continue();
+
 /* Test Stats */
 static unsigned total_tests = 0;
 static unsigned successful_tests = 0;
@@ -71,18 +73,17 @@ test_snapshot_creation (void)
 void
 test_successful_recovery (void)
 {
-  IGNORE;
-  int vm_pages[1000];
+  int vm_pages[1000] = { 0 };
+
+  Genode::size_t size = sizeof (int);
 
   snapper->open_generation ();
+  snapper->restore (&vm_pages, size, 1);
+  snapper->close_generation ();
 
-  TODO ("recover into array");
+  Genode::log (vm_pages[0]);
 
-  for (int i = 0; i < 1000; i++)
-    {
-      if (vm_pages[i] != i + 1)
-        TEST (false);
-    }
+  TEST (vm_pages[0] == 5);
 }
 
 void

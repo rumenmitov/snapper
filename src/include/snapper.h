@@ -7,6 +7,7 @@
 #include <os/path.h>
 #include <os/vfs.h>
 #include <rtc_session/connection.h>
+#include <util/attempt.h>
 #include <util/dictionary.h>
 #include <util/fifo.h>
 #include <util/noncopyable.h>
@@ -44,6 +45,10 @@ namespace SnapperNS
       InvalidState,
       InitFailed,
       LoadGenFailed,
+      InvalidVersion,
+      NoMatches,
+      NoData,
+      RestoreFailed,
     };
 
     enum CrashStates
@@ -71,7 +76,6 @@ namespace SnapperNS
       bool integrity = _integrity;
     };
 
-
     /**
      * @brief Keeps track of which files are backing up which virtual
      * object (identified by a ArchiveKey).
@@ -90,11 +94,32 @@ namespace SnapperNS
       struct Backlink : Genode::Fifo<Backlink>::Element
       {
         Genode::String<Vfs::MAX_PATH_LEN> value;
+        Backlink *_self;
 
         Backlink (const Genode::String<Vfs::MAX_PATH_LEN> &value)
-            : value (value)
+            : value (value), _self (nullptr)
         {
         }
+
+        enum Error
+        {
+          None,
+          MissingFieldErr,
+          InsufficientSizeErr,
+          OpenErr,
+          StatsErr,
+          AllocErr,
+          WriteErr,
+        };
+
+        Genode::Attempt<Snapper::VERSION, Error> get_version (void);
+        Genode::Attempt<Snapper::CRC, Error> get_integrity (void);
+        Genode::Attempt<Snapper::RC, Error> get_reference_count (void);
+        Genode::Attempt<Genode::size_t, Error> get_data_size (void);
+        Error get_data (Genode::Byte_range_ptr &);
+
+        Genode::Attempt<Snapper::RC, Error>
+        set_reference_count (const Snapper::RC);
       };
 
       /**
@@ -104,18 +129,43 @@ namespace SnapperNS
           : Genode::Dictionary<ArchiveEntry, ArchiveKey>::Element
       {
         Queue queue;
+        ArchiveEntry *_self;
 
-        ArchiveEntry (ArchiveKey id, Queue queue,
+        ArchiveEntry (ArchiveKey id,
                       Genode::Dictionary<ArchiveEntry, ArchiveKey> &archive)
-            : Element (archive, id), queue (queue)
+            : Element (archive, id), queue (), _self (nullptr)
         {
         }
+
+        ArchiveEntry (const ArchiveEntry &) = delete;
+        bool operator= (const ArchiveEntry &) = delete;
       };
 
       Archive () : archive () {}
+      ~Archive ();
 
       ArchiveContainer archive;
+
+      /**
+       * @brief Inserts entry into the archive. If the key is already
+       *        present the entry is prepended to a FIFO queue.
+      */
+      void insert (const ArchiveKey,
+                   const Genode::String<Vfs::MAX_PATH_LEN> &);
+
+      /**
+       * @brief Removes entry from archive.
+       */
+      void remove (const ArchiveKey);
     };
+
+    Genode::Env &env;
+
+    Genode::Attached_rom_dataspace config;
+
+    Genode::Heap heap;
+    Genode::Root_directory snapper_root;
+    Rtc::Connection rtc;
 
     ~Snapper ();
 
@@ -138,7 +188,7 @@ namespace SnapperNS
 
     /**
      * @brief Completes the snapshot process by saving the archiver's
-     * contents into the archive file.
+     *        contents into the archive file.
      *
      * @throw SNAPSHOT_NOT_POSSIBLE
      */
@@ -148,15 +198,21 @@ namespace SnapperNS
      * @brief Begin the restoration of a generation. If a generation is
      *        not specified, the latest one will be used.
      */
-    Result
-    open_generation (const Genode::String<
-                     Vfs::Directory_service::Dirent::Name::MAX_LEN> & = "");
+    Result open_generation (
+        const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
+            & = "");
 
-    void
-    restore ()
-    {
-      TODO (__PRETTY_FUNCTION__);
-    }
+    /**
+     * @brief Restore a snapshot file from an opened generation (see
+     *        open_generation()). The buffer should be large enough to
+     *        save the entire data section of the snapshot file.
+     */
+    Result restore (void *, Genode::size_t, Archive::ArchiveKey);
+
+    /**
+     * @brief End the restoration procedure.
+     */
+    Result close_generation (void);
 
     void
     purge ()
@@ -176,13 +232,6 @@ namespace SnapperNS
     };
 
     static Snapper *instance;
-    Genode::Env &env;
-
-    Genode::Attached_rom_dataspace config;
-
-    Genode::Heap heap;
-    Genode::Root_directory snapper_root;
-    Rtc::Connection rtc;
 
     Genode::Reconstructible<Genode::Directory> generation;
     Genode::Reconstructible<Genode::Directory> snapshot;
@@ -228,7 +277,7 @@ namespace SnapperNS
      *        be "zombie" snapshot files which will never be removed from the
      *        file-system!
      */
-    void __update_references(void);
+    void __update_references (void);
   };
 
 } // namespace SnapperNS

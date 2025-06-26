@@ -13,7 +13,11 @@ add_executable(snapper snapper/main.cc)
 add_executable(snappertests tests/snappertests.cc)
 
 # Snapper Library (libsnap)
-add_library(snap lib/snapper.cc)
+add_library(snap
+  lib/snapper.cc
+  lib/archive.cc
+  lib/backlink.cc)
+
 target_include_directories(snap PUBLIC include)
 
 # Linking

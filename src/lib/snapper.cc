@@ -98,6 +98,10 @@ namespace SnapperNS
       return res;
 
     res = __load_gen ();
+    if (res == LoadGenFailed)
+      {
+        state = Dormant;
+      }
 
     return res;
   }
@@ -307,20 +311,8 @@ namespace SnapperNS
     // save the snapshot file's path (i.e. a backlink) into the archive
     // (relative to snapper_root)
 
-    Archive::Backlink backlink (
-        Genode::Directory::join (snapshot_dir_path, filepath_base));
-
-    archiver->archive.with_element (
-        identifier,
-        [&backlink] (Archive::ArchiveEntry &entry) {
-          entry.queue.enqueue (backlink);
-        },
-        [this, identifier, &backlink] () {
-          Genode::Fifo<Archive::Backlink> queue;
-          queue.enqueue (backlink);
-
-          Archive::ArchiveEntry _ (identifier, queue, archiver->archive);
-        });
+    archiver->insert (identifier, Genode::Directory::join (snapshot_dir_path,
+                                                           filepath_base));
 
     return Ok;
   }
@@ -349,6 +341,7 @@ namespace SnapperNS
               }
 
             __abort_snapshot ();
+            return InvalidState;
           }
 
         constexpr Genode::size_t key_size = sizeof (Archive::ArchiveKey);
@@ -369,19 +362,21 @@ namespace SnapperNS
 
         archiver->archive.for_each (
             [&_archive_buf, &idx] (const Archive::ArchiveEntry &entry) {
-              entry.queue.for_each (
-                  [&_archive_buf, &idx, &entry] (Archive::Backlink &backlink) {
-                    Genode::memcpy (_archive_buf + (idx * size), &entry.name,
-                                    key_size);
+              entry.queue.for_each ([&_archive_buf, &idx, &entry] (
+                                        const Archive::Backlink &backlink) {
+                Genode::memcpy (_archive_buf + (idx * size), &entry.name,
+                                key_size);
 
-                    Genode::memcpy (_archive_buf + (idx * size + key_size),
-                                    backlink.value.string (), val_size);
-                  });
+                Genode::memcpy (_archive_buf + (idx * size + key_size),
+                                backlink.value.string (), val_size);
+
+                idx++;
+              });
             });
 
         Snapper::CRC crc;
         Snapper::RC rc = 0;
-        
+
         TODO ("calculate CRC of archive");
 
         Genode::New_file::Append_result res
@@ -411,8 +406,9 @@ namespace SnapperNS
         res = archive.append ((char *)&rc, sizeof (Snapper::RC));
         if (res != Genode::New_file::Append_result::OK)
           {
-            Genode::error ("Failed to write the reference count to the archive file! "
-                           "Aborting the snapshot!");
+            Genode::error (
+                "Failed to write the reference count to the archive file! "
+                "Aborting the snapshot!");
 
             __abort_snapshot ();
 
@@ -432,8 +428,7 @@ namespace SnapperNS
             throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
 
-        heap.free(_archive_buf, size * total_snapshot_objects);
-        
+        heap.free (_archive_buf, size * total_snapshot_objects);
       }
     catch (Genode::New_file::Create_failed)
       {
@@ -495,8 +490,74 @@ namespace SnapperNS
       return res;
 
     res = __load_gen (generation);
+    if (res == LoadGenFailed)
+      {
+        state = Dormant;
+      }
 
     return res;
+  }
+
+  Snapper::Result
+  Snapper::restore (void *dst, Genode::size_t size,
+                    Archive::ArchiveKey identifier)
+  {
+    if (state != Restoration)
+      return InvalidState;
+
+    Snapper::Result res = Ok;
+
+    archiver->archive.with_element (
+        identifier,
+        [&res, &dst, &size] (Archive::ArchiveEntry &entry) {
+          entry.queue.for_each ([&res, &dst,
+                                 &size] (Archive::Backlink &backlink) {
+            backlink.get_version ().with_result (
+                [&res] (Snapper::VERSION version) {
+                  if (version != Version)
+                    res = InvalidVersion;
+                  else
+                    res = Ok;
+                },
+                [&res] (Snapper::Archive::Backlink::Error) {
+                  res = InvalidVersion;
+                });
+
+            if (res != Ok)
+              return;
+
+            TODO ("check crc");
+
+            Genode::Byte_range_ptr buf ((char *)dst, size);
+
+            if (backlink.get_data (buf) != Snapper::Archive::Backlink::None)
+              {
+                res = RestoreFailed;
+              }
+
+            Genode::log ("data: ", *((int *)buf.start));
+          });
+        },
+        [&res] () { res = NoMatches; });
+
+    return res;
+  }
+
+  Snapper::Result
+  Snapper::close_generation (void)
+  {
+    if (state != Restoration)
+      return InvalidState;
+
+    state = Dormant;
+
+    if (generation.constructed ())
+      generation.destruct ();
+
+    if (archiver.constructed ())
+      archiver.destruct ();
+
+    return Ok;
   }
 
   /*
@@ -519,7 +580,8 @@ namespace SnapperNS
       {
         Genode::Path<Vfs::MAX_PATH_LEN> old
             = Genode::Directory::join (latest, "archive");
-        if (!snapper_root.directory_exists (old))
+
+        if (!snapper_root.file_exists (old))
           {
             snapper_root.unlink (latest);
             if (snapper_root.directory_exists (latest))
@@ -611,18 +673,12 @@ namespace SnapperNS
         Genode::Byte_range_ptr key_buf (_key_buf, sizeof (_key_buf));
         Genode::Byte_range_ptr val_buf (_val_buf, sizeof (_val_buf));
 
-        do
+        while (true)
           {
             Genode::size_t bytes_read = archive_file.read (pos, key_buf);
             if (bytes_read == 0)
               {
-                Genode::error ("Archive entry is invalid!");
-                if (snapper_config.integrity)
-                  {
-                    throw CrashStates::INVALID_ARCHIVE_ENTRY;
-                  }
-
-                return LoadGenFailed;
+                break;
               }
 
             pos.value += bytes_read;
@@ -636,21 +692,8 @@ namespace SnapperNS
             Archive::ArchiveKey key
                 = *(reinterpret_cast<Archive::ArchiveKey *> (key_buf.start));
 
-            Archive::Backlink backlink ((char const *)val_buf.start);
-
-            archiver->archive.with_element (
-                key,
-                [&backlink] (Archive::ArchiveEntry &entry) {
-                  entry.queue.enqueue (backlink);
-                },
-                [this, &key, &backlink] () {
-                  Genode::Fifo<Archive::Backlink> new_queue;
-                  new_queue.enqueue (backlink);
-
-                  Archive::ArchiveEntry _ (key, new_queue, archiver->archive);
-                });
+            archiver->insert (key, (char const *)val_buf.start);
           }
-        while (true);
       }
     catch (Genode::File::Open_failed)
       {
@@ -692,292 +735,31 @@ namespace SnapperNS
   void
   Snapper::__update_references (void)
   {
-    archiver->archive.for_each ([this] (const Archive::ArchiveEntry &entry) {
-      entry.queue.for_each ([this] (const Archive::Backlink &backlink) {
-        enum LocalThrow
-        {
-          Continue
-        };
+    bool success = false;
 
-        try
-          {
-            Genode::Readonly_file reader (snapper_root, backlink.value);
-            Genode::New_file writer (
-                snapper_root,
-                Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
-                    backlink.value, ".mod"));
+    archiver->archive.for_each ([this, &success] (
+                                    const Archive::ArchiveEntry &entry) {
+      entry.queue.for_each ([this, &success] (Archive::Backlink &backlink) {
+        backlink.get_reference_count ().with_result (
+            [&backlink, &success] (Snapper::RC rc) {
+              if (backlink.set_reference_count (++rc).ok ())
+                {
+                  success = true;
+                }
+            },
+            [this] (Snapper::Archive::Backlink::Error) {
+              if (snapper_config.integrity)
+                {
+                  throw CrashStates::INVALID_SNAPSHOT_FILE;
+                }
+            });
 
-            Genode::Readonly_file::At pos{ 0 };
-
-            char _version_buf[sizeof (Snapper::VERSION)];
-            Genode::Byte_range_ptr version_buf (_version_buf,
-                                                sizeof (Snapper::VERSION));
-
-            if (reader.read (pos, version_buf) == 0)
-              {
-                Genode::error ("snapshot file has no version: ",
-                               backlink.value);
-
-                snapper_root.unlink (
-                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
-                        backlink.value, ".mod"));
-
-                if (snapper_config.integrity)
-                  {
-                    throw CrashStates::INVALID_SNAPSHOT_FILE;
-                  }
-
-                throw LocalThrow::Continue;
-              }
-
-            pos.value += sizeof (Snapper::VERSION);
-
-            char _crc_buf[sizeof (Snapper::CRC)];
-            Genode::Byte_range_ptr crc_buf (_crc_buf, sizeof (Snapper::CRC));
-
-            if (reader.read (pos, crc_buf) == 0)
-              {
-                Genode::error ("snapshot file has no CRC: ", backlink.value);
-
-                snapper_root.unlink (
-                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
-                        backlink.value, ".mod"));
-
-                if (snapper_config.integrity)
-                  {
-                    throw CrashStates::INVALID_SNAPSHOT_FILE;
-                  }
-
-                throw LocalThrow::Continue;
-              }
-
-            pos.value += sizeof (Snapper::CRC);
-
-            char _rc_buf[sizeof (Snapper::RC)];
-            Genode::Byte_range_ptr rc_buf (_rc_buf, sizeof (Snapper::RC));
-
-            if (reader.read (pos, rc_buf) == 0)
-              {
-                Genode::error ("snapshot file has no reference count: ",
-                               backlink.value);
-
-                snapper_root.unlink (
-                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
-                        backlink.value, ".mod"));
-
-                if (snapper_config.integrity)
-                  {
-                    throw CrashStates::INVALID_SNAPSHOT_FILE;
-                  }
-
-                throw LocalThrow::Continue;
-              }
-
-            pos.value += sizeof (Snapper::RC);
-
-            Vfs::Dir_file_system::Stat stats;
-            if (snapper_root.root_dir ().stat (backlink.value.string (), stats)
-                != Vfs::Dir_file_system::STAT_OK)
-              {
-                Genode::error ("failed to get stats for file: ",
-                               backlink.value);
-
-                snapper_root.unlink (
-                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
-                        backlink.value, ".mod"));
-
-                if (snapper_config.integrity)
-                  {
-                    throw CrashStates::INVALID_SNAPSHOT_FILE;
-                  }
-
-                throw LocalThrow::Continue;
-              }
-
-            Genode::uint64_t _data_size
-                = stats.size - sizeof (Snapper::VERSION)
-                  - sizeof (Snapper::CRC) - sizeof (Snapper::RC);
-
-            char *_data_buf = (char *)heap.alloc (_data_size);
-            Genode::Byte_range_ptr data_buf (_data_buf, _data_size);
-
-            if (reader.read (pos, data_buf) == 0)
-              {
-                Genode::error ("snapshot file has no data: ", backlink.value);
-
-                snapper_root.unlink (
-                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
-                        backlink.value, ".mod"));
-
-                if (snapper_config.integrity)
-                  {
-                    throw CrashStates::INVALID_SNAPSHOT_FILE;
-                  }
-
-                throw LocalThrow::Continue;
-              }
-
-            Genode::New_file::Append_result res
-                = writer.append (version_buf.start, version_buf.num_bytes);
-
-            if (res != Genode::New_file::Append_result::OK)
-              {
-                Genode::error ("could not update reference count of backlink "
-                               "due to a write error: ",
-                               backlink.value);
-
-                snapper_root.unlink (
-                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
-                        backlink.value, ".mod"));
-
-                if (snapper_config.integrity)
-                  {
-                    throw CrashStates::INVALID_SNAPSHOT_FILE;
-                  }
-
-                throw LocalThrow::Continue;
-              }
-
-            res = writer.append (crc_buf.start, crc_buf.num_bytes);
-
-            if (res != Genode::New_file::Append_result::OK)
-              {
-                Genode::error ("could not update reference count of backlink "
-                               "due to a write error: ",
-                               backlink.value);
-
-                snapper_root.unlink (
-                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
-                        backlink.value, ".mod"));
-
-                if (snapper_config.integrity)
-                  {
-                    throw CrashStates::INVALID_SNAPSHOT_FILE;
-                  }
-
-                throw LocalThrow::Continue;
-              }
-
-            Snapper::RC reference_count
-                = *(reinterpret_cast<Snapper::RC *> (rc_buf.start));
-
-            reference_count++;
-            Genode::memcpy (rc_buf.start, &reference_count,
-                            sizeof (Snapper::RC));
-
-            res = writer.append (rc_buf.start, rc_buf.num_bytes);
-
-            if (res != Genode::New_file::Append_result::OK)
-              {
-                Genode::error ("could not update reference count of backlink "
-                               "due to a write error: ",
-                               backlink.value);
-
-                snapper_root.unlink (
-                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
-                        backlink.value, ".mod"));
-
-                if (snapper_config.integrity)
-                  {
-                    throw CrashStates::INVALID_SNAPSHOT_FILE;
-                  }
-
-                throw LocalThrow::Continue;
-              }
-
-            res = writer.append (data_buf.start, data_buf.num_bytes);
-
-            if (res != Genode::New_file::Append_result::OK)
-              {
-                Genode::error ("could not update reference count of backlink "
-                               "due to a write error: ",
-                               backlink.value);
-
-                snapper_root.unlink (
-                    Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
-                        backlink.value, ".mod"));
-
-                if (snapper_config.integrity)
-                  {
-                    throw CrashStates::INVALID_SNAPSHOT_FILE;
-                  }
-
-                throw LocalThrow::Continue;
-              }
-
-            heap.free (_data_buf, data_buf.num_bytes);
-
-            snapper_root.root_dir ().rename (
-                Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
-                    backlink.value, ".mod")
-                    .string (),
-                backlink.value.string ());
-          }
-        catch (Genode::Readonly_file::Open_failed)
-          {
-            /* INFO
-             * Do not crash system in this case (even if
-             * SNAPPER_INTEGR is set to true). If a backlink's
-             * reference count fails to be updated and supposing that
-             * this backlink is purged from the file-system, then the
-             * archive entry will be invalid (in which case we can
-             * just ignore it).
-             */
-            if (snapper_config.verbose)
-              Genode::warning ("failed to open backlink: ", backlink.value);
-          }
-        catch (Genode::New_file::Create_failed)
-          {
-            Genode::error ("backlink should not be created here! This should "
-                           "be an unreachable state!");
-
-            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-          }
-        catch (Genode::Out_of_ram)
-          {
-            Genode::error ("snapper is out of RAM! Aborting the snapshot!");
-
-            snapper_root.root_dir ().rename (
-                Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
-                    backlink.value, ".mod")
-                    .string (),
-                backlink.value.string ());
-
-            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-          }
-        catch (Genode::Out_of_caps)
-          {
-            Genode::error (
-                "snapper is out of capabilities! Aborting the snapshot!");
-
-            snapper_root.root_dir ().rename (
-                Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
-                    backlink.value, ".mod")
-                    .string (),
-                backlink.value.string ());
-
-            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-          }
-        catch (Genode::Denied)
-          {
-            Genode::error ("memory allocation denied! Aborting the snapshot!");
-
-            snapper_root.root_dir ().rename (
-                Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (
-                    backlink.value, ".mod")
-                    .string (),
-                backlink.value.string ());
-
-            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-          }
-        catch (LocalThrow)
-          {
-            /* INFO
-             * Continue to next backlink.
-             */
-          }
+        if (success)
+          return;
       });
+
+      if (success)
+        return;
     });
   }
-
 } // namespace SnapperNS
