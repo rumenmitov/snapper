@@ -14,7 +14,8 @@
       integrity="true"
       max_snapshots="0"
       min_snapshots="0"
-      threshold="100">
+      threshold="100"
+      expiration="3600">
 
     <rtc/>
     <vfs>

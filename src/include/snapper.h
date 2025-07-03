@@ -75,6 +75,7 @@ namespace SnapperNS
         _threshold = 100,
         _max_snapshots = 0,
         _min_snapshots = 0,
+        _expiration = 0,
       };
 
       bool verbose = _verbose;
@@ -83,6 +84,7 @@ namespace SnapperNS
       Genode::uint64_t threshold = _threshold;
       Genode::uint64_t max_snapshots = _max_snapshots;
       Genode::uint64_t min_snapshots = _min_snapshots;
+      Genode::uint64_t expiration = _expiration;
 
     } snapper_config;
 

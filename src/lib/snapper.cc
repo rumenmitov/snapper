@@ -27,7 +27,7 @@ str_to_timestamp (char *str)
 
   char *ptr = str;
   const unsigned base = 10;
-  
+
   Rtc::Timestamp ts;
 
   // year
@@ -61,18 +61,64 @@ str_to_timestamp (char *str)
   ptr += size + 1;
 
   // minute
-  size = Genode::ascii_to_unsigned<decltype (ts.minute)> (ptr, ts.minute, base);
+  size
+      = Genode::ascii_to_unsigned<decltype (ts.minute)> (ptr, ts.minute, base);
   if (size != 1 && size != 2)
     throw -1;
 
   ptr += size + 1;
 
   // second
-  size = Genode::ascii_to_unsigned<decltype (ts.second)> (ptr, ts.second, base);
+  size
+      = Genode::ascii_to_unsigned<decltype (ts.second)> (ptr, ts.second, base);
   if (size != 1 && size != 2)
     throw -1;
 
   return ts;
+}
+
+[[maybe_unused]] static bool
+leap_year (unsigned year)
+{
+  return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+}
+
+[[maybe_unused]] static unsigned
+days_in_month (unsigned month, unsigned year)
+{
+  static const unsigned days[]
+      = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+  if (month == 2 && leap_year (year))
+    return 29;
+
+  return days[month - 1];
+}
+
+[[maybe_unused]] Genode::uint64_t
+timestamp_to_seconds (const Rtc::Timestamp &ts)
+{
+  Genode::uint64_t seconds = 0;
+
+  // add seconds for complete years since epoch (1970)
+  for (unsigned y = 1970; y < ts.year; y++)
+    {
+      seconds += leap_year (y) ? 366ULL * 24 * 60 * 60 : 365ULL * 24 * 60 * 60;
+    }
+
+  // add seconds for complete months in current year
+  for (unsigned m = 1; m < ts.month; m++)
+    {
+      seconds += days_in_month (m, ts.year) * 24ULL * 60 * 60;
+    }
+
+  // Add remaining days, hours, minutes and seconds
+  seconds += (ts.day - 1) * 24ULL * 60 * 60;
+  seconds += ts.hour * 60ULL * 60;
+  seconds += ts.minute * 60ULL;
+  seconds += ts.second;
+
+  return seconds;
 }
 
 namespace SnapperNS
@@ -130,6 +176,11 @@ namespace SnapperNS
         = config.xml ()
               .attribute_value<decltype (Snapper::Config::min_snapshots)> (
                   "min_snapshots", Snapper::Config::_min_snapshots);
+
+    snapper_config.expiration
+        = config.xml ()
+              .attribute_value<decltype (Snapper::Config::expiration)> (
+                  "expiration", Snapper::Config::_expiration);
   }
 
   Snapper::~Snapper ()
@@ -753,7 +804,7 @@ namespace SnapperNS
     __reset_gen ();
 
     if (snapper_config.verbose)
-      Genode::log ("purged ", _gen);
+      Genode::log ("purged: \"", _gen, "\"");
 
   CLEAN_RET:
     state = Dormant;
@@ -786,6 +837,37 @@ namespace SnapperNS
 
         num_gen = __num_gen ();
       }
+
+    if (!snapper_config.expiration)
+      return;
+
+    Rtc::Timestamp now = snapper->rtc.current_time ();
+    Genode::uint64_t expiry
+        = timestamp_to_seconds (now) - snapper_config.expiration;
+
+    snapper_root.for_each_entry (
+        [this, expiry] (Genode::Directory::Entry &entry) {
+          try
+            {
+              Rtc::Timestamp ts
+                  = str_to_timestamp ((char *)entry.name ().string ());
+              if (timestamp_to_seconds (ts) < expiry)
+                {
+                  if (purge (entry.name ()) != Ok)
+                    throw -1;
+
+                  if (snapper_config.integrity)
+                    Genode::log ("purged expired generation: \"",
+                                 entry.name (), "\"");
+                }
+            }
+          catch (...)
+            {
+              Genode::error ("failed to purge expired generation: \"",
+                             entry.name (), "\"");
+              throw CrashStates::PURGE_FAILED;
+            }
+        });
   }
 
   /*
