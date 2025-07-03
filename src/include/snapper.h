@@ -49,6 +49,7 @@ namespace SnapperNS
       NoMatches,
       NoData,
       RestoreFailed,
+      PurgeDenied,
     };
 
     enum CrashStates
@@ -73,6 +74,7 @@ namespace SnapperNS
         _integrity = true,
         _threshold = 100,
         _max_snapshots = 0,
+        _min_snapshots = 0,
       };
 
       bool verbose = _verbose;
@@ -80,6 +82,7 @@ namespace SnapperNS
       bool integrity = _integrity;
       Genode::uint64_t threshold = _threshold;
       Genode::uint64_t max_snapshots = _max_snapshots;
+      Genode::uint64_t min_snapshots = _min_snapshots;
 
     } snapper_config;
 
@@ -290,6 +293,11 @@ namespace SnapperNS
      *        file-system!
      */
     void __update_references (void);
+
+    /**
+     * @brief Returns the number of valid generations.
+     */
+    Genode::uint64_t __num_gen (void);
   };
 
 } // namespace SnapperNS

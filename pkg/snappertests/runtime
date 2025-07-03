@@ -8,12 +8,20 @@
     <rom label="snapper-root_tests.tar" />
   </content>
 
-  <config verbose="true" redundancy="2" integrity="true" max_snapshots="0">
+  <config
+      verbose="true"
+      redundancy="2"
+      integrity="true"
+      max_snapshots="0"
+      min_snapshots="0"
+      threshold="100">
+
     <rtc/>
     <vfs>
       <ram/>
       <tar name="snapper-root_tests.tar"/>
     </vfs>
+
   </config>
 
 </runtime>

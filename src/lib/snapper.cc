@@ -57,7 +57,7 @@ namespace SnapperNS
               .attribute_value<decltype (Snapper::Config::integrity)> (
                   "integrity", Snapper::Config::_integrity);
 
-  snapper_config.threshold
+    snapper_config.threshold
         = config.xml ()
               .attribute_value<decltype (Snapper::Config::threshold)> (
                   "threshold", Snapper::Config::_threshold);
@@ -66,6 +66,11 @@ namespace SnapperNS
         = config.xml ()
               .attribute_value<decltype (Snapper::Config::max_snapshots)> (
                   "max_snapshots", Snapper::Config::_max_snapshots);
+
+    snapper_config.min_snapshots
+        = config.xml ()
+              .attribute_value<decltype (Snapper::Config::min_snapshots)> (
+                  "min_snapshots", Snapper::Config::_min_snapshots);
   }
 
   Snapper::~Snapper ()
@@ -594,6 +599,15 @@ namespace SnapperNS
         return InvalidState;
       }
 
+    if (__num_gen() - 1 < snapper_config.min_snapshots) {
+      Genode::error("purging generation will reduce snapshot count to less than allowed!");
+      return PurgeDenied;
+    }
+
+    /* INFO
+       Check that we have the minimum allowed generation count.
+    */
+
     state = Purge;
     Snapper::Result res = Ok;
 
@@ -677,6 +691,9 @@ namespace SnapperNS
 
     __reset_gen ();
 
+    if (snapper_config.verbose)
+      Genode::log ("purged ", _gen);
+
   CLEAN_RET:
     state = Dormant;
     return res;
@@ -685,14 +702,28 @@ namespace SnapperNS
   void
   Snapper::purge_expired (void)
   {
-    while (snapper_root.root_dir ().num_dirent ("/")
-               > snapper_config.max_snapshots
-           && snapper_config.max_snapshots != 0)
+    Genode::uint64_t num_gen = __num_gen ();
+
+    while (snapper_config.max_snapshots
+           && num_gen > snapper_config.max_snapshots
+           && num_gen > snapper_config.min_snapshots)
       {
         if (snapper_config.verbose)
           Genode::log ("snaphots exceed max number, purging oldest");
 
-        purge ();
+        if (purge () != Ok)
+          {
+            Genode::error ("could not purge oldest generation! It must be "
+                           "removed manually!");
+
+            /* INFO
+               We must crash here, otherwise non-expired
+               generations will be purged!
+            */
+            throw CrashStates::PURGE_FAILED;
+          }
+
+        num_gen = __num_gen();
       }
   }
 
@@ -915,5 +946,20 @@ namespace SnapperNS
       if (success)
         return;
     });
+  }
+
+  Genode::uint64_t
+  Snapper::__num_gen (void)
+  {
+    Genode::uint64_t num_generations = 0;
+
+    TODO ("check that the entry's archive files have valid crc");
+    snapper_root.for_each_entry ([this, &num_generations] (
+                                     Genode::Directory::Entry &e) {
+      if (snapper_root.file_exists (Genode::Directory::join (e, "archive")))
+        num_generations++;
+    });
+
+    return num_generations;
   }
 } // namespace SnapperNS
