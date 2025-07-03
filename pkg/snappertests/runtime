@@ -8,7 +8,7 @@
     <rom label="snapper-root_tests.tar" />
   </content>
 
-  <config verbose="true" redundancy="2" integrity="true">
+  <config verbose="true" redundancy="2" integrity="true" max_snapshots="0">
     <rtc/>
     <vfs>
       <ram/>

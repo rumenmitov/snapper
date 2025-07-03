@@ -36,7 +36,8 @@ namespace SnapperNS
    * snapshot_dir_path.
    */
   Snapper::Snapper (Genode::Env &env)
-      : snapper_config(), env (env), config (env, "config"), heap (env.ram (), env.rm ()),
+      : snapper_config (), env (env), config (env, "config"),
+        heap (env.ram (), env.rm ()),
         snapper_root (env, heap, config.xml ().sub_node ("vfs")), rtc (env),
         generation (static_cast<Vfs::Simple_env &> (snapper_root)),
         snapshot (static_cast<Vfs::Simple_env &> (snapper_root)),
@@ -55,6 +56,11 @@ namespace SnapperNS
         = config.xml ()
               .attribute_value<decltype (Snapper::Config::integrity)> (
                   "integrity", Snapper::Config::_integrity);
+
+    snapper_config.max_snapshots
+        = config.xml ()
+              .attribute_value<decltype (Snapper::Config::max_snapshots)> (
+                  "max_snapshots", Snapper::Config::_max_snapshots);
   }
 
   Snapper::~Snapper ()
@@ -478,6 +484,9 @@ namespace SnapperNS
     __reset_gen ();
 
     state = Dormant;
+
+    purge_expired ();
+
     return Ok;
   }
 
@@ -564,6 +573,8 @@ namespace SnapperNS
 
     if (archiver.constructed ())
       archiver.destruct ();
+
+    purge_expired ();
 
     return Ok;
   }
@@ -666,6 +677,20 @@ namespace SnapperNS
     return res;
   }
 
+  void
+  Snapper::purge_expired (void)
+  {
+    while (snapper_root.root_dir ().num_dirent ("/")
+               > snapper_config.max_snapshots
+           && snapper_config.max_snapshots != 0)
+      {
+        if (snapper_config.verbose)
+          Genode::log ("snaphots exceed max number, purging oldest");
+
+        purge ();
+      }
+  }
+
   /*
    * HELPER FUNCTIONS
    */
@@ -724,6 +749,12 @@ namespace SnapperNS
       {
         Genode::error ("could not create snapshot directory: ", timestamp,
                        "/snapshot");
+
+        snapper_root.unlink (timestamp);
+        if (snapper_root.directory_exists (timestamp))
+          Genode::error ("could not remove directory: ", timestamp,
+                         "! It must be manually removed!");
+
         return InitFailed;
       }
 

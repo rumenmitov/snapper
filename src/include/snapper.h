@@ -71,11 +71,15 @@ namespace SnapperNS
         _verbose = false,
         _redundancy = 3,
         _integrity = true,
+        _threshold = 100,
+        _max_snapshots = 0,
       };
 
       bool verbose = _verbose;
       Genode::uint64_t redundancy = _redundancy;
       bool integrity = _integrity;
+      Genode::uint64_t threshold = _threshold;
+      Genode::uint64_t max_snapshots = _max_snapshots;
 
     } snapper_config;
 
@@ -224,6 +228,11 @@ namespace SnapperNS
     Result
     purge (const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
                & = "");
+
+    /**
+     * @brief Purges expired generations.
+     */
+    void purge_expired (void);
 
   private:
     Snapper (Genode::Env &);
