@@ -239,12 +239,6 @@ namespace SnapperNS
     Snapper (const Snapper &) = delete;
     Snapper operator= (Snapper &) = delete;
 
-    enum
-    {
-      SNAPPER_THRESH = 100,
-      SNAPPER_INTEGR = true
-    };
-
     static Snapper *instance;
 
     Genode::Reconstructible<Genode::Directory> generation;

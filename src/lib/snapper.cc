@@ -57,6 +57,11 @@ namespace SnapperNS
               .attribute_value<decltype (Snapper::Config::integrity)> (
                   "integrity", Snapper::Config::_integrity);
 
+  snapper_config.threshold
+        = config.xml ()
+              .attribute_value<decltype (Snapper::Config::threshold)> (
+                  "threshold", Snapper::Config::_threshold);
+
     snapper_config.max_snapshots
         = config.xml ()
               .attribute_value<decltype (Snapper::Config::max_snapshots)> (
@@ -270,7 +275,7 @@ namespace SnapperNS
     total_snapshot_objects++;
     snapshot_file_count++;
 
-    if (snapshot_file_count >= SNAPPER_THRESH)
+    if (snapshot_file_count >= snapper_config.threshold)
       {
         snapshot->create_sub_directory ("ext");
         if (!snapshot->directory_exists ("ext"))
