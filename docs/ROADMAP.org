@@ -148,6 +148,13 @@ DEADLINE: <2025-06-30 Mon>
 :END:
 Create a TAR archive to hold the testing scenarios for Snapper. The different scenarios will be stored as separate generations. The TAR archive will be loaded as read-only in the file-system.
 
+* TODO [#C] Integrate Lwext4
+DEADLINE: <2025-07-07 Mon>
+:PROPERTIES:
+:Effort:   5
+:END:
+This might require patching the lwext4 repo to so that it can be built on the latest genode version.
+
 * TODO [#C] Integration Into PhantomOS
 DEADLINE: <2025-07-07 Mon>
 :PROPERTIES:
