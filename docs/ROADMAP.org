@@ -88,7 +88,7 @@ DEADLINE: <2025-06-16 Mon>
 #+LATEX: \clearpage
 
 
-* TODO [#B] Snapshot Recovery
+* DONE [#B] Snapshot Recovery
 DEADLINE: <2025-06-23 Mon>
 :PROPERTIES:
 :Effort:   10
@@ -102,7 +102,7 @@ DEADLINE: <2025-06-23 Mon>
    3. If there are no more backlinks to check, respond according to the configured policy.
    4. If the CRC matches h_{i}, load the data of h_{i} into the corresponding page p_{i}.
 
-* TODO [#C] Snapshot Purge
+* DONE [#C] Snapshot Purge
 DEADLINE: <2025-06-23 Mon>
 :PROPERTIES:
 :Effort:   10
