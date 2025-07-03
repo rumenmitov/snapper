@@ -35,13 +35,26 @@ namespace SnapperNS
    * path. That will also then affect the initialization of
    * snapshot_dir_path.
    */
-  Snapper::Snapper (Genode::Env &env, const Snapper::Config &snapper_config)
-      : env (env), config (env, "config"), heap (env.ram (), env.rm ()),
+  Snapper::Snapper (Genode::Env &env)
+      : snapper_config(), env (env), config (env, "config"), heap (env.ram (), env.rm ()),
         snapper_root (env, heap, config.xml ().sub_node ("vfs")), rtc (env),
         generation (static_cast<Vfs::Simple_env &> (snapper_root)),
         snapshot (static_cast<Vfs::Simple_env &> (snapper_root)),
-        snapshot_dir_path ("/"), snapper_config (snapper_config), archiver ()
+        snapshot_dir_path ("/"), archiver ()
   {
+    snapper_config.verbose
+        = config.xml ().attribute_value<decltype (Snapper::Config::verbose)> (
+            "verbose", Snapper::Config::_verbose);
+
+    snapper_config.redundancy
+        = config.xml ()
+              .attribute_value<decltype (Snapper::Config::redundancy)> (
+                  "redundancy", Snapper::Config::_redundancy);
+
+    snapper_config.integrity
+        = config.xml ()
+              .attribute_value<decltype (Snapper::Config::integrity)> (
+                  "integrity", Snapper::Config::_integrity);
   }
 
   Snapper::~Snapper ()
@@ -56,18 +69,19 @@ namespace SnapperNS
       Genode::log ("snapper object destroyed.");
   }
 
+  // TODO: rewrite this to use Reconstructible.
   Snapper *
-  Snapper::new_snapper (Genode::Env &env, const Snapper::Config &config)
+  Snapper::new_snapper (Genode::Env &env)
   {
     if (Snapper::instance)
       return Snapper::instance;
 
-    static Snapper local_snapper (env, config);
+    static Snapper local_snapper (env);
     env.exec_static_constructors ();
 
     Snapper::instance = &local_snapper;
 
-    if (config.verbose)
+    if (Snapper::instance->snapper_config.verbose)
       Genode::log ("new snapper object created.");
 
     return Snapper::instance;
@@ -593,7 +607,6 @@ namespace SnapperNS
       goto CLEAN_RET;
 
     archiver->archive.for_each ([this] (const Archive::ArchiveEntry &entry) {
-
       // decrement each backlink's reference count
       entry.queue.for_each ([this] (Archive::Backlink &backlink) {
         bool remove = false;
@@ -641,10 +654,10 @@ namespace SnapperNS
          * will be removed.
          */
       });
-      archiver->remove(entry.name);
+      archiver->remove (entry.name);
     });
 
-    TODO("remove empty directories");
+    TODO ("remove empty directories");
 
     __reset_gen ();
 

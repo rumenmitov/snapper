@@ -114,13 +114,7 @@ Component::construct (Genode::Env &env)
 {
   Genode::log ("-*- SNAPPER TEST SUITE -*-\n");
 
-  Snapper::Config config;
-
-#ifdef VERBOSE
-  config.verbose = true;
-#endif
-
-  snapper = SnapperNS::Snapper::new_snapper (env, config);
+  snapper = SnapperNS::Snapper::new_snapper (env);
   if (!snapper)
     Genode::error ("could not initialize snapper object!");
 

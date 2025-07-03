@@ -76,7 +76,8 @@ namespace SnapperNS
       bool verbose = _verbose;
       Genode::uint64_t redundancy = _redundancy;
       bool integrity = _integrity;
-    };
+
+    } snapper_config;
 
     /**
      * @brief Keeps track of which files are backing up which virtual
@@ -174,7 +175,7 @@ namespace SnapperNS
     /**
      * @brief Creates a new singleton of Snapper.
      */
-    static Snapper *new_snapper (Genode::Env &, const Config &);
+    static Snapper *new_snapper (Genode::Env &);
 
     /**
      * @brief Begins the snapshot process.
@@ -225,7 +226,7 @@ namespace SnapperNS
                & = "");
 
   private:
-    Snapper (Genode::Env &, const Config &);
+    Snapper (Genode::Env &);
     Snapper (const Snapper &) = delete;
     Snapper operator= (Snapper &) = delete;
 
@@ -243,7 +244,6 @@ namespace SnapperNS
     Genode::uint64_t snapshot_file_count = 0;
     Genode::uint64_t total_snapshot_objects = 0;
 
-    Config snapper_config;
     Genode::Reconstructible<Archive> archiver;
 
     /**
