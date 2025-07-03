@@ -121,7 +121,7 @@ Note, that when a file's reference count is decremented to 0, the file is remove
    2. For each entry h \in ~Snapper::Archiver~ and for each file h_{i} \in h: decrement the file h_{i}'s reference count.
    3. Delete the archive file.
 
-* TODO [#C] XML Configuration Support
+* DONE [#C] XML Configuration Support
 DEADLINE: <2025-06-30 Mon>
 :PROPERTIES:
 :Effort:   5
@@ -134,8 +134,22 @@ DEADLINE: <2025-06-30 Mon>
 - [X] Retention::MIN_SNAPS
 - [X] Retention::EXPIRATION
 
-* TODO [#C] Integration Into PhantomOS
+* TODO [#A] Implement CRC
 DEADLINE: <2025-06-30 Mon>
+:PROPERTIES:
+:Effort:   3
+:END:
+Implement CRC checks and use them where needed in the Snapper mechanism.
+
+* TODO [#B] Create TAR Archive for Testing Scenarios
+DEADLINE: <2025-06-30 Mon>
+:PROPERTIES:
+:Effort:   5
+:END:
+Create a TAR archive to hold the testing scenarios for Snapper. The different scenarios will be stored as separate generations. The TAR archive will be loaded as read-only in the file-system.
+
+* TODO [#C] Integration Into PhantomOS
+DEADLINE: <2025-07-07 Mon>
 :PROPERTIES:
 :Effort:   10
 :END:
