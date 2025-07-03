@@ -131,7 +131,7 @@ DEADLINE: <2025-06-30 Mon>
 - [X] SNAPPER_INEGR
 - [X] SNAPPER_REDUND
 - [X] Retention::MAX_SNAPS
-- [ ] Retention::MIN_SNAPS
+- [X] Retention::MIN_SNAPS
 - [ ] Retention::EXPIRATION
 
 * TODO [#C] Integration Into PhantomOS

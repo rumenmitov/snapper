@@ -16,6 +16,65 @@ timestamp_to_str (const Rtc::Timestamp &ts)
   return str;
 }
 
+// TODO better error handling
+[[maybe_unused]] static Rtc::Timestamp
+str_to_timestamp (char *str)
+{
+  if (Genode::strlen (str) > Vfs::Directory_service::Dirent::Name::MAX_LEN)
+    {
+      throw -1;
+    }
+
+  char *ptr = str;
+  const unsigned base = 10;
+  
+  Rtc::Timestamp ts;
+
+  // year
+  Genode::size_t size
+      = Genode::ascii_to_unsigned<decltype (ts.year)> (ptr, ts.year, base);
+
+  if (size < 4)
+    throw -1;
+
+  ptr += size + 1;
+
+  // month
+  size = Genode::ascii_to_unsigned<decltype (ts.month)> (ptr, ts.month, base);
+  if (size != 1 && size != 2)
+    throw -1;
+
+  ptr += size + 1;
+
+  // day
+  size = Genode::ascii_to_unsigned<decltype (ts.day)> (ptr, ts.day, base);
+  if (size != 1 && size != 2)
+    throw -1;
+
+  ptr += size + 1;
+
+  // hour
+  size = Genode::ascii_to_unsigned<decltype (ts.hour)> (ptr, ts.hour, base);
+  if (size != 1 && size != 2)
+    throw -1;
+
+  ptr += size + 1;
+
+  // minute
+  size = Genode::ascii_to_unsigned<decltype (ts.minute)> (ptr, ts.minute, base);
+  if (size != 1 && size != 2)
+    throw -1;
+
+  ptr += size + 1;
+
+  // second
+  size = Genode::ascii_to_unsigned<decltype (ts.second)> (ptr, ts.second, base);
+  if (size != 1 && size != 2)
+    throw -1;
+
+  return ts;
+}
+
 namespace SnapperNS
 {
   /*
@@ -599,10 +658,12 @@ namespace SnapperNS
         return InvalidState;
       }
 
-    if (__num_gen() - 1 < snapper_config.min_snapshots) {
-      Genode::error("purging generation will reduce snapshot count to less than allowed!");
-      return PurgeDenied;
-    }
+    if (__num_gen () - 1 < snapper_config.min_snapshots)
+      {
+        Genode::error ("purging generation will reduce snapshot count to less "
+                       "than allowed!");
+        return PurgeDenied;
+      }
 
     /* INFO
        Check that we have the minimum allowed generation count.
@@ -723,7 +784,7 @@ namespace SnapperNS
             throw CrashStates::PURGE_FAILED;
           }
 
-        num_gen = __num_gen();
+        num_gen = __num_gen ();
       }
   }
 
