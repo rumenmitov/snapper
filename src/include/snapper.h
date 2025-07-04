@@ -255,6 +255,16 @@ namespace SnapperNS
     Genode::Reconstructible<Archive> archiver;
 
     /**
+     * @brief Checks if archive file exists and has a valid CRC.
+     */
+    bool __valid_archive(const Genode::Path<Vfs::MAX_PATH_LEN>&);
+    
+    /**
+     * @brief Checks if snapshot file exists and has a valid CRC.
+     */
+    bool __valid_snapshot_file(const Genode::Path<Vfs::MAX_PATH_LEN>&);
+
+    /**
      * @brief Removes the last generation if it does not contain a
      * valid archive file (i.e. it is an incomplete snapshot).
      */

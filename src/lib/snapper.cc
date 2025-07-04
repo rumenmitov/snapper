@@ -522,8 +522,7 @@ namespace SnapperNS
               });
             });
 
-        Snapper::CRC crc;
-        TODO ("calculate CRC of archive");
+        Snapper::CRC crc = crc32(_archive_buf, size * total_snapshot_objects);
 
         Genode::New_file::Append_result res
             = archive.append ((char *)&Version, sizeof (Snapper::VERSION));
@@ -874,6 +873,120 @@ namespace SnapperNS
    * HELPER FUNCTIONS
    */
 
+  bool
+  Snapper::__valid_archive (const Genode::Path<Vfs::MAX_PATH_LEN> &archive)
+  {
+    if (!snapper_root.file_exists (archive))
+      {
+        /* INFO
+           No log message here, as this branch is commonly used when
+           iterating over the <snapper-root>'s entries. Logging here
+           would just clutter the logs.
+         */
+
+        return false;
+      }
+
+    try
+      {
+        Genode::Readonly_file _archive (snapper_root, archive);
+
+        // check version
+        Genode::Readonly_file::At pos{ 0 };
+
+        char _version_buf[sizeof (Snapper::VERSION)];
+        Genode::Byte_range_ptr version_buf (_version_buf,
+                                            sizeof (Snapper::VERSION));
+
+        if (_archive.read (pos, version_buf) == 0)
+          {
+            Genode::error ("invalid archive, missing version: ", archive);
+            return false;
+          }
+
+        Snapper::VERSION version
+            = *(reinterpret_cast<Snapper::VERSION *> (version_buf.start));
+
+        if (version != snapper->Version)
+          {
+            Genode::error ("invalid archive, version mismatch: ", version,
+                           ", should be: ", snapper->Version);
+            return false;
+          }
+
+        // check CRC
+        pos.value += sizeof (Snapper::VERSION);
+
+        char _crc_buf[sizeof (Snapper::CRC)];
+        Genode::Byte_range_ptr crc_buf (_crc_buf, sizeof (Snapper::CRC));
+
+        if (_archive.read (pos, crc_buf) == 0)
+          {
+            Genode::error ("invalid archive, missing CRC: ", archive);
+            return false;
+          }
+
+        Snapper::CRC crc = *(reinterpret_cast<Snapper::CRC *> (crc_buf.start));
+
+        // get data size
+        Vfs::Dir_file_system::Stat stats;
+        if (snapper->snapper_root.root_dir ().stat (archive.string (), stats)
+            != Vfs::Dir_file_system::STAT_OK)
+          {
+            Genode::error ("could not open the stats for: ", archive);
+            return false;
+          }
+
+        Genode::size_t size
+            = stats.size - sizeof (Snapper::VERSION) - sizeof (Snapper::CRC);
+
+        // get data
+        pos.value += sizeof (Snapper::CRC);
+
+        char *_data_buf = (char *)heap.alloc (size);
+        Genode::Byte_range_ptr data (_data_buf, size);
+
+        if (_archive.read (pos, data) == 0)
+          {
+            Genode::error ("invalid archive, missing data: ", archive);
+            return false;
+          }
+
+        // calculate and check crc
+        bool integrity = crc != crc32 (data.start, data.num_bytes);
+        heap.free(data.start, data.num_bytes);
+        
+        if (integrity)
+          {
+            Genode::error ("invalid archive, integrity check failed: ",
+                           archive);
+            return false;
+          }
+      }
+    catch (Genode::Readonly_file::Open_failed)
+      {
+        Genode::error ("could not open archive file");
+        return false;
+      }
+    catch (Genode::Out_of_ram)
+      {
+        Genode::error ("could not allocate heap: out of ram!");
+        return false;
+      }
+    catch (Genode::Out_of_caps)
+      {
+        Genode::error ("could not allocate heap: out of capabilities!");
+        return false;
+      }
+    catch (Genode::Denied)
+      {
+        Genode::error ("could not allocate heap: allocation denied!");
+        return false;
+      }
+
+    return true;
+  }
+
   Snapper::Result
   Snapper::__remove_unfinished_gen (void)
   {
@@ -967,15 +1080,14 @@ namespace SnapperNS
 
     if (latest == "")
       {
-        TODO ("check whether archive file has a valid crc");
         snapper_root.for_each_entry (
-            [this, &latest] (Genode::Directory::Entry &e) {
-              if (latest == "" || e.name () > latest)
+            [this, &latest] (Genode::Directory::Entry &entry) {
+              if (latest == "" || entry.name () > latest)
                 {
-                  if (snapper_root.file_exists (
-                          Genode::Directory::join (e.name (), "archive")))
+                  if (__valid_archive (
+                          Genode::Directory::join (entry.name (), "archive")))
                     {
-                      latest = e.name ();
+                      latest = entry.name ();
                     }
                 }
             });
@@ -986,11 +1098,20 @@ namespace SnapperNS
 
     try
       {
-        Genode::Readonly_file archive_file (
-            snapper_root, Genode::Directory::join (latest, "archive"));
+        Genode::Path<Vfs::MAX_PATH_LEN> archive_path
+            = Genode::Directory::join (latest, "archive");
 
-        TODO ("read and check version");
-        TODO ("read and check crc");
+        if (!__valid_archive (archive_path))
+          {
+            if (snapper_config.integrity)
+              {
+                throw CrashStates::INVALID_ARCHIVE_FILE;
+              }
+
+            return LoadGenFailed;
+          }
+
+        Genode::Readonly_file archive_file (snapper_root, archive_path);
 
         Genode::Readonly_file::At pos (sizeof (Snapper::VERSION)
                                        + sizeof (Snapper::CRC));
@@ -1096,10 +1217,9 @@ namespace SnapperNS
   {
     Genode::uint64_t num_generations = 0;
 
-    TODO ("check that the entry's archive files have valid crc");
     snapper_root.for_each_entry ([this, &num_generations] (
                                      Genode::Directory::Entry &e) {
-      if (snapper_root.file_exists (Genode::Directory::join (e, "archive")))
+      if (__valid_archive (Genode::Directory::join (e, "archive")))
         num_generations++;
     });
 

@@ -87,7 +87,6 @@ DEADLINE: <2025-06-16 Mon>
 
 #+LATEX: \clearpage
 
-
 * DONE [#B] Snapshot Recovery
 DEADLINE: <2025-06-23 Mon>
 :PROPERTIES:
