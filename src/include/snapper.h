@@ -46,6 +46,7 @@ namespace SnapperNS
       InitFailed,
       LoadGenFailed,
       InvalidVersion,
+      IntegrityFailed,
       NoMatches,
       NoData,
       RestoreFailed,
@@ -257,12 +258,12 @@ namespace SnapperNS
     /**
      * @brief Checks if archive file exists and has a valid CRC.
      */
-    bool __valid_archive(const Genode::Path<Vfs::MAX_PATH_LEN>&);
-    
+    bool __valid_archive (const Genode::Path<Vfs::MAX_PATH_LEN> &);
+
     /**
      * @brief Checks if snapshot file exists and has a valid CRC.
      */
-    bool __valid_snapshot_file(const Genode::Path<Vfs::MAX_PATH_LEN>&);
+    bool __valid_snapshot_file (const Genode::Path<Vfs::MAX_PATH_LEN> &);
 
     /**
      * @brief Removes the last generation if it does not contain a
@@ -310,6 +311,13 @@ namespace SnapperNS
      * @brief Returns the number of valid generations.
      */
     Genode::uint64_t __num_gen (void);
+
+    /**
+     * @brief Deletes the target. If the target is the last remaining
+     *        dirent, it deletes parent directory. This continues recursively
+     *        until <snapper-root>.
+    */
+    void __delete_upwards(const char *);
   };
 
 } // namespace SnapperNS

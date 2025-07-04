@@ -133,7 +133,7 @@ DEADLINE: <2025-06-30 Mon>
 - [X] Retention::MIN_SNAPS
 - [X] Retention::EXPIRATION
 
-* TODO [#A] Implement CRC
+* DONE [#A] Implement CRC
 DEADLINE: <2025-06-30 Mon>
 :PROPERTIES:
 :Effort:   3
@@ -168,7 +168,7 @@ DEADLINE: <2025-07-07 Mon>
 The following tests will be conducted within PhantomOS.
 
 - [ ] Snapshot creation
-- [ ] Snapshot recovery
+- [ ] Snapshot recovery (randomly permuted objects)
 - [ ] Snapshot purge
 
 * TODO [#C] Demo Application to Demonstrate Snapper
@@ -177,3 +177,5 @@ DEADLINE: <2025-06-14 Sat>
 :Effort:   15
 :END:
 Create a graphical application to demonstrate Snapper's capabilities. Perhaps a weather app that graphs real-world data? The application state should be taken a snapshot of which will be restored after a system reboot.
+
+* TODO pause snapshots?
