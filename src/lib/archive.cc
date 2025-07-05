@@ -9,8 +9,17 @@ namespace SnapperNS
 {
   Snapper::Archive::~Archive ()
   {
-    archive.for_each (
-        [this] (const Archive::ArchiveEntry &entry) { remove (entry.name); });
+    while (true)
+      {
+
+        bool not_empty = archive.with_any_element (
+            [this] (const Archive::ArchiveEntry &entry) {
+              remove (entry.name);
+            });
+
+        if (!not_empty)
+          break;
+      }
   }
 
   void

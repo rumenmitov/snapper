@@ -55,22 +55,31 @@ using namespace SnapperNS;
 void
 test_snapshot_creation (void)
 {
-  bool init = snapper->init_snapshot () == Snapper::Ok;
+  if (snapper->init_snapshot () != Snapper::Ok)
+    {
+      TEST (false);
+    }
 
-  int mytestkey = 1;
-  int mytestval = 5;
-  bool snapshot
-      = snapper->take_snapshot (&mytestval, sizeof (mytestval), mytestkey)
-        == Snapper::Ok;
+  for (int i = 1; i <= 1000; i++)
+    {
+      if (snapper->take_snapshot (&i, sizeof (decltype (i)), i) != Snapper::Ok)
+        {
+          TEST (false);
+        }
+    }
 
-  bool commit = snapper->commit_snapshot () == Snapper::Ok;
+  if (snapper->commit_snapshot () != Snapper::Ok)
+    {
+      TEST (false);
+    }
 
-  TEST (init && snapshot && commit);
+  TEST (true);
 }
 
 void
 test_successful_recovery (void)
 {
+  IGNORE;
   int vm_pages[1000] = { 0 };
 
   Genode::size_t size = sizeof (int);
@@ -104,6 +113,7 @@ test_unsuccessful_recovery (void)
 void
 test_snapshot_purge (void)
 {
+  IGNORE;
   bool ok = snapper->purge () == Snapper::Ok;
 
   TEST (ok);

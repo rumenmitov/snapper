@@ -1,4 +1,4 @@
-<runtime ram="10M" caps="400" binary="snappertests">
+<runtime ram="100M" caps="400" binary="snappertests">
 
   <requires> <rtc/> </requires>
 

@@ -22,7 +22,7 @@ DEADLINE: <2025-06-16 Mon>
 The following unit tests are used to check if the functions are not throwing any unexpected errors. For testing with actual virtual pages in PhantomOS check out the [[#integration-tests][Integration Tests]] section.
 
 ** DONE Snapshot creation
-1. Create an array of 1000 elements containing random integers.
+1. Create an array of 1000 elements containing the integers from 1 to 1000.
 2. Create a snapshot of every element in the array.
 3. If test is successful, there should be no errors thrown.
 
@@ -166,6 +166,7 @@ DEADLINE: <2025-07-07 Mon>
 :Effort:   5
 :END:
 The following tests will be conducted within PhantomOS.
+- I think the snapshot testing is done [[https://github.com/rumenmitov/phantomuserland/blob/72fe04870ec5ba4970d0f88143afafc047ad80d3/src/phantom/isomem/vm_map.c#L1950][here]].
 
 - [ ] Snapshot creation
 - [ ] Snapshot recovery (randomly permuted objects)
