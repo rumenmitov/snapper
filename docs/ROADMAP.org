@@ -14,7 +14,7 @@ DEADLINE: <2025-06-16 Mon>
 - [X] Use Goa as a build tool
 - [X] Define data structures and ~Snapper~ object.
 
-* TODO [#C] Unit Tests
+* DONE [#C] Unit Tests
 DEADLINE: <2025-06-16 Mon>
 :PROPERTIES:
 :Effort:   4
@@ -22,46 +22,25 @@ DEADLINE: <2025-06-16 Mon>
 The following unit tests are used to check if the functions are not throwing any unexpected errors. For testing with actual virtual pages in PhantomOS check out the [[#integration-tests][Integration Tests]] section.
 
 ** DONE Snapshot creation
+:properties:
+:custom_id: creation-test
+:end:
 1. Create an array of 1000 elements containing the integers from 1 to 1000.
 2. Create a snapshot of every element in the array.
 3. If test is successful, there should be no errors thrown.
 
-** TODO Snapshot successful recovery
-*** Test #1
-Note, this test requires an archive of a generation storing integers in the range from 1 to 1000 in increasing order.
+** DONE Snapshot successful recovery
+Note, this test requires that [[#creation-test][Snapshot Creation Test]] ran successfully beforehand.
 
 1. Create an empty array that can hold 1000 integers.
 2. Recover each file from the generation into an element in the array.
 3. If test is successful, the array should store all numbers from 1 to 1000 in ascending order.
-
-*** Test #2
-Note, this test requires an archive containing two generations: one invalid, the second invalid. Both generations are snapshots of an array containing all integers from 1 to 1000 in increasing order. However, the older, invalid one contains some files that are needed by the valid generation. 
-
-1. Create an empty array that can hold 1000 integers.
-2. Recover each file from the valid generation into an element in the array.
-3. If test is successful, the array should store all numbers from 1 to 1000 in ascending order.
-
-*** Test #3
-Note, this test requires an archive containing a generation and an invalid snapshot created after the valid generation. The valid generation should store integers in the range from 1 to 1000 in increasing order.
-
-1. Create an empty array with capacity for 1000 integers.
-2. Recover each file from the generation into an element in the array.
-3. If test is successful, the array should store all numbers from 1 to 1000 in ascending order and the incomplete generation's directory should have been removed.
-
-** DONE Snapshot unsuccessful recovery
-Note, this test requires an archive of a generation whose archive file has an invalid CRC. 
-
-1. Try to recover the generation.
-2. If test is successful, the recovery should not be possible and an error should be written stating that the archive file is invalid.
 
 ** DONE Snapshot purge
-Note, this test requires an archive of two valid generations. Both generations are snapshots of an array containing all integers from 1 to 1000 in increasing order. However, the older one contains some files that are needed by the valid generation. 
+Note, this test requires that [[#creation-test][Snapshot Creation Test]] ran successfully beforehand.
 
-1. Purge the older generation.
-2. Create an empty array with capacity for 1000 integers.
-3. Trying to recover from the older generation should be unsuccessful.
-4. Recover each file from the non-purged generation into an element in the array.
-5. If test is successful, the array should store all numbers from 1 to 1000 in ascending order.
+1. Purge the earliest snapshot.
+2. Test is successful, if purge operation is a success.
 
 * DONE [#B] Snapshot Creation
 DEADLINE: <2025-06-16 Mon>
@@ -139,14 +118,6 @@ DEADLINE: <2025-06-30 Mon>
 :Effort:   3
 :END:
 Implement CRC checks and use them where needed in the Snapper mechanism.
-
-* TODO [#B] Create TAR Archive for Testing Scenarios
-DEADLINE: <2025-06-30 Mon>
-:PROPERTIES:
-:Effort:   5
-:END:
-Create a TAR archive to hold the testing scenarios for Snapper. The different scenarios will be stored as separate generations. The TAR archive will be loaded as read-only in the file-system.
-
 * TODO [#C] Integrate Lwext4
 DEADLINE: <2025-07-07 Mon>
 :PROPERTIES:

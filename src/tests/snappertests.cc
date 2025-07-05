@@ -141,4 +141,6 @@ Component::construct (Genode::Env &env)
 
   summary ();
   Genode::log ("\n-*- SNAPPER TESTS DONE -*-");
+
+  env.parent().exit((successful_tests == total_tests) ? 0 : 1);
 }
