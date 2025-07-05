@@ -1134,7 +1134,7 @@ namespace SnapperNS
                                        + sizeof (Snapper::CRC));
 
         char _key_buf[sizeof (Archive::ArchiveKey)];
-        char _val_buf[Vfs::MAX_PATH_LEN];
+        char _val_buf[sizeof(decltype(Archive::Backlink::value))];
 
         Genode::Byte_range_ptr key_buf (_key_buf, sizeof (_key_buf));
         Genode::Byte_range_ptr val_buf (_val_buf, sizeof (_val_buf));
@@ -1158,7 +1158,7 @@ namespace SnapperNS
             Archive::ArchiveKey key
                 = *(reinterpret_cast<Archive::ArchiveKey *> (key_buf.start));
 
-            archiver->insert (key, (char const *)val_buf.start);
+            archiver->insert (key, Genode::Cstring(val_buf.start));
           }
       }
     catch (Genode::File::Open_failed)

@@ -27,7 +27,7 @@ test (const char *name, bool condition)
     }
 }
 
-#define TEST(condition) test (__PRETTY_FUNCTION__, condition)
+#define TEST(condition) return test (__PRETTY_FUNCTION__, condition)
 
 /* Ignore Test */
 [[maybe_unused]] static void
@@ -79,16 +79,23 @@ test_snapshot_creation (void)
 void
 test_successful_recovery (void)
 {
-  IGNORE;
-  int vm_pages[1000] = { 0 };
+  int value = 0;
+  Genode::size_t size = sizeof (decltype (value));
 
-  Genode::size_t size = sizeof (int);
+  if (snapper->open_generation () != Snapper::Ok)
+    TEST (false);
 
-  snapper->open_generation ();
-  snapper->restore (&vm_pages, size, 1);
-  snapper->close_generation ();
+  for (int i = 1; i <= 1000; i++)
+    {
+      snapper->restore (&value, size, i);
+      if (value != i)
+        TEST (false);
+    }
 
-  TEST (vm_pages[0] == 5);
+  if (snapper->close_generation () != Snapper::Ok)
+    TEST (false);
+
+  TEST (true);
 }
 
 void
@@ -113,7 +120,6 @@ test_unsuccessful_recovery (void)
 void
 test_snapshot_purge (void)
 {
-  IGNORE;
   bool ok = snapper->purge () == Snapper::Ok;
 
   TEST (ok);
