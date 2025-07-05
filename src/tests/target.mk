@@ -1,4 +1,4 @@
-TARGET   = snapper
+TARGET   = snappertests
 SRC_CC   = main.cc 
 LIBS    += base vfs os rtc_session
 
