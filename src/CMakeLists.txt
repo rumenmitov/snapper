@@ -18,11 +18,9 @@ add_library(snap
   lib/archive.cc
   lib/backlink.cc)
 
-target_include_directories(snap PUBLIC include)
-
 # Linking
+target_include_directories(snap PUBLIC ../include)
+
 target_link_libraries(snapper PUBLIC snap)
-target_include_directories(snapper PUBLIC include)
 
 target_link_libraries(snappertests PUBLIC snap)
-target_include_directories(snappertests PUBLIC include)
