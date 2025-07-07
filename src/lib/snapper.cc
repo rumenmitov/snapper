@@ -208,7 +208,6 @@ namespace SnapperNS
       Genode::log ("snapper object destroyed.");
   }
 
-  // TODO: rewrite this to use Reconstructible.
   Snapper *
   Snapper::new_snapper (Genode::Env &env)
   {
