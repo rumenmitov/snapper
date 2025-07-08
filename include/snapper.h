@@ -14,8 +14,6 @@
 #include <vfs/simple_env.h>
 #include <vfs/types.h>
 
-#include "utils.h"
-
 namespace SnapperNS
 {
   class Snapper;
@@ -172,8 +170,6 @@ namespace SnapperNS
       void remove (const ArchiveKey);
     };
 
-    Genode::Env &env;
-
     Genode::Attached_rom_dataspace config;
 
     Genode::Heap heap;
@@ -316,8 +312,8 @@ namespace SnapperNS
      * @brief Deletes the target. If the target is the last remaining
      *        dirent, it deletes parent directory. This continues recursively
      *        until <snapper-root>.
-    */
-    void __delete_upwards(const char *);
+     */
+    void __delete_upwards (const char *);
   };
 
 } // namespace SnapperNS

@@ -1,22 +1,24 @@
-assert_spec linux
-
 #
 # Check used commands
 #
 set mke4fs [installed_command mkfs.ext4]
 set dd     [installed_command dd]
+set cat    [installed_command cat]
 
 #
 # Build
 #
 create_boot_directory
 build {
-	core init timer
-	lib/ld lib/vfs
-	server/vfs
-	server/vfs_block
-	lib/vfs_lwext4
-  snapper
+    core init timer
+    lib/ld
+    lib/vfs
+    server/vfs
+    server/vfs_block
+    lib/vfs_import
+    lib/vfs_lwext4
+    driver/rtc
+    snapper
 }
 
 #
@@ -31,10 +33,11 @@ create_boot_directory
 #
 # Generate config
 #
-append config [read_file [genode_dir]/repos/snapper/etc/snapper.config]
+append config [ exec $cat [genode_dir]/repos/snapper/etc/snapper.config ]
+
 install_config $config
 
-build_boot_image [list {*}[build_artifacts] squid_block.raw]
+build_boot_image [list {*}[build_artifacts] snapper_block.raw]
 
 run_genode_until forever
 

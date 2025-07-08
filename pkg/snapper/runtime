@@ -1,7 +1,25 @@
-<runtime ram="1M" caps="100" binary="snapper">
-  <config/>
+<runtime ram="100M" caps="400" binary="snapper">
+  <requires> <rtc/> </requires>
+
   <content>
     <rom label="snapper"/>
     <rom label="vfs.lib.so"/>
   </content>
+
+  <config
+      verbose="true"
+      redundancy="2"
+      integrity="true"
+      max_snapshots="0"
+      min_snapshots="0"
+      threshold="100"
+      expiration="3600">
+
+    <rtc/>
+    <vfs>
+      <ram/>
+    </vfs>
+
+  </config>
+
 </runtime>

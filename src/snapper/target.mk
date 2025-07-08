@@ -1,6 +1,6 @@
 TARGET   = snapper
-SRC_CC   = main.cc 
-LIBS    += base vfs os rtc_session
+SRC_CC   = main.cc snapper.cc backlink.cc archive.cc
+LIBS    += base vfs
 
 INC_DIR += $(REP_DIR)/include
 

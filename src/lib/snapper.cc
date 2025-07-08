@@ -4,6 +4,7 @@
 #include <vfs/vfs_handle.h>
 
 #include "snapper.h"
+#include "utils.h"
 
 [[maybe_unused]] static Genode::String<
     Vfs::Directory_service::Dirent::Name::MAX_LEN>
@@ -154,7 +155,7 @@ namespace SnapperNS
    * snapshot_dir_path.
    */
   Snapper::Snapper (Genode::Env &env)
-      : snapper_config (), env (env), config (env, "config"),
+      : snapper_config (), config (env, "config"),
         heap (env.ram (), env.rm ()),
         snapper_root (env, heap, config.xml ().sub_node ("vfs")), rtc (env),
         generation (static_cast<Vfs::Simple_env &> (snapper_root)),
