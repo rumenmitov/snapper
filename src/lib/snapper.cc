@@ -423,7 +423,12 @@ namespace SnapperNS
           }
 
         // writing reference count
-        Snapper::RC reference_count = 1;
+        /* INFO
+         The reference count will be incremented when the full
+         snapshot is committed. It starts at 0, because the snapshot
+         file is currently not referenced by any archive file.
+        */
+        Snapper::RC reference_count = 0;
         res = file.append ((char *)&reference_count, sizeof (Snapper::RC));
 
         if (res != Genode::New_file::Append_result::OK)

@@ -102,7 +102,7 @@ namespace SnapperNS
       }
     catch (Genode::Readonly_file::Open_failed)
       {
-        Genode::error("could not open backlink: ", value);
+        Genode::error ("could not open backlink: ", value);
         return Genode::Attempt<Snapper::RC,
                                Snapper::Archive::Backlink::Error> (OpenErr);
       }
@@ -114,17 +114,20 @@ namespace SnapperNS
   Genode::Attempt<Genode::size_t, Snapper::Archive::Backlink::Error>
   Snapper::Archive::Backlink::get_data_size (void)
   {
-    Vfs::Dir_file_system::Stat stats;
-    if (snapper->snapper_root.root_dir ().stat (value.string (), stats)
-        != Vfs::Dir_file_system::STAT_OK)
-      {
-        Genode::error ("could not open the stats for: ", value);
+    Vfs::file_size fsize = 0;
 
+    try
+      {
+        fsize = snapper->snapper_root.file_size (value);
+      }
+    catch (Genode::Directory::Nonexistent_file)
+      {
+        Genode::error ("could not data size of nonexistent file: ", value);
         return Genode::Attempt<Genode::size_t,
-                               Snapper::Archive::Backlink::Error> (StatsErr);
+                               Snapper::Archive::Backlink::Error> (Snapper::Archive::Backlink::StatsErr);
       }
 
-    Genode::size_t size = stats.size - sizeof (Snapper::VERSION)
+    Genode::size_t size = fsize - sizeof (Snapper::VERSION)
                           - sizeof (Snapper::CRC) - sizeof (Snapper::RC);
 
     return Genode::Attempt<Genode::size_t, Snapper::Archive::Backlink::Error> (
