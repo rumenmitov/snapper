@@ -99,25 +99,6 @@ test_successful_recovery (void)
 }
 
 void
-test_unsuccessful_recovery (void)
-{
-  IGNORE;
-  int vm_pages[1000];
-
-  snapper->open_generation ();
-
-  TODO ("try to recover into array");
-
-  for (int i = 0; i < 1000; i++)
-    {
-      if (vm_pages[i] != i + 1)
-        TEST (true);
-    }
-
-  TEST (false);
-}
-
-void
 test_snapshot_purge (void)
 {
   bool ok = snapper->purge () == Snapper::Ok;
@@ -136,7 +117,6 @@ Component::construct (Genode::Env &env)
 
   test_snapshot_creation ();
   test_successful_recovery ();
-  test_unsuccessful_recovery ();
   test_snapshot_purge ();
 
   summary ();
