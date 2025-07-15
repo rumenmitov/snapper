@@ -124,7 +124,8 @@ namespace SnapperNS
       {
         Genode::error ("could not data size of nonexistent file: ", value);
         return Genode::Attempt<Genode::size_t,
-                               Snapper::Archive::Backlink::Error> (Snapper::Archive::Backlink::StatsErr);
+                               Snapper::Archive::Backlink::Error> (
+            Snapper::Archive::Backlink::StatsErr);
       }
 
     Genode::size_t size = fsize - sizeof (Snapper::VERSION)
@@ -242,12 +243,11 @@ namespace SnapperNS
         goto CLEAN_RET;
       }
 
+    snapper->snapper_root.unlink (value);
+
     try
       {
-        Genode::New_file writer (
-            snapper->snapper_root,
-            Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (value,
-                                                                 ".mod"));
+        Genode::New_file writer (snapper->snapper_root, value);
 
         // version
         Genode::New_file::Append_result write_res
@@ -310,9 +310,6 @@ namespace SnapperNS
   CLEAN_RET:
     if (data.start)
       snapper->heap.free (data.start, data.num_bytes);
-
-    snapper->snapper_root.unlink (
-        Genode::String<Vfs::MAX_PATH_LEN + sizeof (".mod")> (value, ".mod"));
 
     if (res == WriteErr)
       {

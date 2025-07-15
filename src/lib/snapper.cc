@@ -779,48 +779,57 @@ namespace SnapperNS
     if (res != Ok)
       goto CLEAN_RET;
 
-    archiver->archive.for_each ([this] (const Archive::ArchiveEntry &entry) {
-      // decrement each backlink's reference count
-      entry.queue.for_each ([this] (Archive::Backlink &backlink) {
-        bool remove = false;
+    while (true)
+      {
+        bool has_element = archiver->archive.with_any_element (
+            [this] (const Archive::ArchiveEntry &entry) {
+              // decrement each backlink's reference count
+              entry.queue.for_each ([this] (Archive::Backlink &backlink) {
+                bool remove = false;
 
-        backlink.get_reference_count ().with_result (
-            [&backlink, &remove] (Snapper::RC reference_count) {
-              reference_count--;
+                backlink.get_reference_count ().with_result (
+                    [&backlink, &remove] (Snapper::RC reference_count) {
+                      reference_count--;
 
-              // if the reference count is 0 or less, remove the
-              // backlink
-              if (reference_count > 0)
-                {
-                  if (backlink.set_reference_count (reference_count).failed ())
-                    {
+                      // if the reference count is 0 or less, remove the
+                      // backlink
+                      if (reference_count > 0)
+                        {
+                          if (backlink.set_reference_count (reference_count)
+                                  .failed ())
+                            {
+                              if (snapper->snapper_config.integrity)
+                                throw CrashStates::REF_COUNT_FAILED;
+
+                              remove = true;
+                            }
+                        }
+                      else
+                        remove = true;
+                    },
+                    [&remove] (Archive::Backlink::Error) {
                       if (snapper->snapper_config.integrity)
                         throw CrashStates::REF_COUNT_FAILED;
 
                       remove = true;
-                    }
-                }
-              else
-                remove = true;
-            },
-            [&remove] (Archive::Backlink::Error) {
-              if (snapper->snapper_config.integrity)
-                throw CrashStates::REF_COUNT_FAILED;
+                    });
 
-              remove = true;
+                if (remove)
+                  __delete_upwards (backlink.value.string ());
+
+                /* INFO
+                 * No need to dequeue the Backlink as the entire ArchiveEntry
+                 * will be removed.
+                 */
+              });
+              archiver->remove (entry.name);
             });
 
-        if (remove)
-          __delete_upwards (backlink.value.string ());
-
-        /* INFO
-         * No need to dequeue the Backlink as the entire ArchiveEntry
-         * will be removed.
-         */
-      });
-      archiver->remove (entry.name);
-    });
-
+        if (!has_element)
+          {
+            break;
+          }
+      }
     __delete_upwards (Genode::Directory::join (_gen, "archive").string ());
     __reset_gen ();
 
@@ -1139,7 +1148,7 @@ namespace SnapperNS
                                        + sizeof (Snapper::CRC));
 
         char _key_buf[sizeof (Archive::ArchiveKey)];
-        char _val_buf[sizeof(decltype(Archive::Backlink::value))];
+        char _val_buf[sizeof (decltype (Archive::Backlink::value))];
 
         Genode::Byte_range_ptr key_buf (_key_buf, sizeof (_key_buf));
         Genode::Byte_range_ptr val_buf (_val_buf, sizeof (_val_buf));
@@ -1163,7 +1172,7 @@ namespace SnapperNS
             Archive::ArchiveKey key
                 = *(reinterpret_cast<Archive::ArchiveKey *> (key_buf.start));
 
-            archiver->insert (key, Genode::Cstring(val_buf.start));
+            archiver->insert (key, Genode::Cstring (val_buf.start));
           }
       }
     catch (Genode::File::Open_failed)
@@ -1248,6 +1257,17 @@ namespace SnapperNS
     return num_generations;
   }
 
+  Genode::uint64_t
+  Snapper::__num_dirent (const Genode::String<Vfs::MAX_PATH_LEN> &dir)
+  {
+    Genode::uint64_t count = 0;
+
+    Genode::Directory _dir (snapper_root, dir);
+    _dir.for_each_entry ([&count] (Genode::Directory::Entry &) { count++; });
+
+    return count;
+  }
+
   void
   Snapper::__delete_upwards (const char *location)
   {
@@ -1291,13 +1311,7 @@ namespace SnapperNS
 
     if (_location[0])
       {
-        /* INFO
-           For some reason file-system is not syncing properly. I
-           tried with queue_sync() and complete_sync(), but they did
-           not have an effect. Hence, if the number of directory
-           entries drops to one or less, delete the parent.
-         */
-        if (snapper_root.root_dir ().num_dirent (parent_dir) <= 1)
+        if (__num_dirent (Genode::Cstring (parent_dir)) < 1)
           __delete_upwards (parent_dir);
       }
   }

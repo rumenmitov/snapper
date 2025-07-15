@@ -309,6 +309,13 @@ namespace SnapperNS
     Genode::uint64_t __num_gen (void);
 
     /**
+     * @brief Returns the number of directory entries in the
+     * 				directory. This is needed because the
+     *        num_dirent() method is unreliable.
+     */
+    Genode::uint64_t __num_dirent (const Genode::String<Vfs::MAX_PATH_LEN> &);
+
+    /**
      * @brief Deletes the target. If the target is the last remaining
      *        dirent, it deletes parent directory. This continues recursively
      *        until <snapper-root>.
