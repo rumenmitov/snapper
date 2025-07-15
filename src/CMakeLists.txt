@@ -10,7 +10,7 @@ endif()
 
 # Main Executables
 add_executable(snapper snapper/main.cc)
-add_executable(snappertests tests/main.cc)
+add_executable(snappertests test/snapper/main.cc)
 
 # Snapper Library (libsnap)
 add_library(snap
