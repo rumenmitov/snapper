@@ -42,3 +42,7 @@ build_boot_image [list {*}[build_artifacts] snapper_block.raw]
 run_genode_until forever
 
 exec rm -f bin/snapper_block.raw
+
+;; Local Variables:
+;; mode: tcl
+;; End:
