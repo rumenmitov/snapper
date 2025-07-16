@@ -9,9 +9,7 @@
     <rom label="lx_fs"/>
     <rom label="vfs_block"/>
     <rom label="vfs.lib.so"/>
-    <rom label="vfs_import.lib.so"/>
     <rom label="vfs_lwext4.lib.so" />
-    <rom label="snapper_block.raw" />
   </content>
 
   <config>

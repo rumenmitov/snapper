@@ -1,24 +1,110 @@
 #+title: Snapper 2.0
 #+author: Rumen Mitov
-#+email: rumen.mitov@constructor.university
+#+email: rumen.mitov@constructor.tech
 
-Snapper 2.0 (henceforth known as just Snapper) is a snapshot mechanism for the virtual memory space of the persistent operating system PhantomOS. It uses the a logging file system (e.g. ext4) to ensure that file operations (e.g. modification or deletion) are resistant to OS crashes mid-way through the operation.
+Snapper 2.0 (or just Snapper) is a snapshot mechanism for the virtual memory space of the persistent operating system PhantomOS. It uses the a logging file system (e.g. ext4) to ensure that file operations (e.g. modification or deletion) are resistant to OS crashes mid-way through the operation.
 
 A vital property of Snapper is that it needs to be disk space efficient in order not to bloat the file system. This is done by utilizing a mapping from the virtual pages (from now on referred only as pages) to a file containing their contents. Thus if a page remains unchanged its contents will still be mapped to a file from a previous snapshot, hence no new file needs to be created.
+
+* Requirements
+- Genode + Goa
+- [[https://codeberg.org/jws/genode-wundertuete/src/branch/25.05-2025-07-07][Lwext4 Plugin]] (optional)
+
+* Installation
+Install the requirements. This pre-built container image comes with all the dependencies needed for Genode:
+#+begin_src shell
+  git clone --depth 1 https://github.com/genodelabs/genode.git
+  git clone --depth 1 https://github.com/genodelabs/goa.git genode/goa
+  git clone --depth 1 https://github.com/rumenmitov/snapper genode/repos/snapper
+
+  podman run -d --name genode --cap-add SYS_PTRACE -v $PWD/genode:/genode -w /genode docker.io/rmitov/genode:25.05 tail -f /dev/null
+#+end_src
+
+#+begin_quote
+Make sure to setup Genode's build directory before continuing!
+#+end_quote
+
+Add the following to _<genode>/build/x86_64/etc/build.conf_:
+
+: REPOSITORIES += $(GENODE_DIR)/repos/wundertuete
+: REPOSITORIES += $(GENODE_DIR)/repos/snapper
+
+Optionally add the Lwext plugin:
+
+#+begin_src shell
+  git clone https://codeberg.org/jws/genode-wundertuete.git genode/repos/wundertuete
+
+  cd genode/repos/wundertuete
+
+  git switch 25.05-2025-07-07
+
+  cd -
+#+end_src
+
+Run this inside the container:
+
+#+begin_src shell
+  /genode/tool/ports/prepare_port lwext4
+  DEPOT_DIR=/genode/repos/snapper/var/depot goa depot-dir
+  DEPOT_DIR=/genode/repos/snapper/var/depot /genode/tool/depot/create rumen/bin/x86_64/vfs_lwext4
+
+  echo "rumen/src/vfs_lwext4/$(date +%Y-%m-%d)" >> /genode/repos/snapper/pkg/snapper/archives
+  echo "rumen/src/vfs_lwext4/$(date +%Y-%m-%d)" >> /genode/repos/snapper/pkg/snappertests/archives
+
+  mkdir /genode/repos/snapper/raw
+  dd if=/dev/zero of=/genode/repos/snapper/raw/snapper_block.raw bs=1M seek=16 count=0
+  mkfs.ext4 -O^metadata_csum -F /genode/repos/snapper/raw/snapper_block.raw
+#+end_src
+
+* Running Snapper
+If you are using the container, the following should be run inside the container.
+
+** With Goa
+#+begin_src shell
+  cd /genode/repos/snapper
+  goa run --pkg snapper
+#+end_src
+
+This will run the main Snapper binary. If instead you want to run the tests:
+
+: goa run --pkg snappertests
+
+** With Run Script
+#+begin_src shell
+  cd /genode
+  make -C build/x86_64 run/snapper KERNEL=linux BOARD=linux
+#+end_src
+
+Or, to run the tests:
+
+: make -C build/x86_64 run/snappertests KERNEL=linux BOARD=linux
 
 * Configuration of Snapper
 :properties:
 :custom_id: configuration
 :end:
-Snapper should be configurable through Genode's XML. Here are the configuration options it will support:
+Snapper should be configurable through Genode's XML. Here are the configuration options it supports:
 
 #+ATTR_LATEX: :environment longtable :align l|c|p{7cm}
-| <l>                   |     <c>      |                                                                                               <r50> |
-| OPTION                |     TYPE     |                                                                                         DESCRIPTION |
-|-----------------------+--------------+-----------------------------------------------------------------------------------------------------|
-| SNAPPER_ROOT          |    ~string~    |                                                           The path of the _<snapper-root>_ directory. |
-| SNAPPER_THRESH        | ~unsigned int~ |                                                    The number of files in a _snapshot_ sub-directory. |
-| SNAPPER_INTEGR        |     ~bool~     |                      If true, crash the system on failed integrity checks, otherwise log a warning. |
-| SNAPPER_REDUND        | ~unsigned int~ | After reaching this reference count, a redundant file copy will be created for subsequent snapshot. |
-| Retention::MAX_SNAPS  | ~unsigned int~ |                                     The maximum number of complete snapshots inside _<snapper-root>_. |
-| Retention::EXPIRATION |     TBD      |                                                                 How long a snapshot should be kept. |
+| <l10>                 |    <c30>     |                                                     <r50> |
+| OPTION                |     TYPE     |                                               DESCRIPTION |
+|-----------------------+--------------+-----------------------------------------------------------|
+| SNAPPER_VERBOSE       |     ~bool~     |                          Whether to print verbose output. |
+|-----------------------+--------------+-----------------------------------------------------------|
+| SNAPPER_THRESH        | ~unsigned int~ |          The number of files in a _snapshot_ sub-directory. |
+|-----------------------+--------------+-----------------------------------------------------------|
+| SNAPPER_INTEGR        |     ~bool~     |     If true, crash the system on failed integrity checks, |
+|                       |              |                                  otherwise log a warning. |
+|-----------------------+--------------+-----------------------------------------------------------|
+| SNAPPER_REDUND        | ~unsigned int~ |     After reaching this reference count, a redundant file |
+|                       |              |             copy will be created for subsequent snapshot. |
+|-----------------------+--------------+-----------------------------------------------------------|
+| Retention::MAX_SNAPS  | ~unsigned int~ |           The maximum number of complete snapshots inside |
+|                       |              |                                          _<snapper-root>_. |
+|-----------------------+--------------+-----------------------------------------------------------|
+| Retention::MIN_SNAPS  | ~unsigned int~ | The minimum number of generations that need to be present |
+|                       |              |                                   a purge to be possible. |
+|-----------------------+--------------+-----------------------------------------------------------|
+| Retention::EXPIRATION | ~unsigned int~ |             How many seconds a generation should be kept. |
+|                       |  (seconds)   |                                                           |
+|-----------------------+--------------+-----------------------------------------------------------|
