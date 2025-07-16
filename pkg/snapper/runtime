@@ -1,9 +1,12 @@
 <runtime ram="2G" caps="700" binary="init">
-  <requires> <rtc/> </requires>  
+  <requires>
+    <rtc/>
+  </requires>  
 
   <content>
     <rom label="snapper"/>
     <rom label="vfs"/>
+    <rom label="lx_fs"/>
     <rom label="vfs_block"/>
     <rom label="vfs.lib.so"/>
     <rom label="vfs_import.lib.so"/>
@@ -25,18 +28,29 @@
 		</default-route>
 		<default caps="100" ram="1M"/>
 
+	  <start name="lx_fs" caps="200" ram="4M" ld="no">
+		  <provides> <service name="File_system"/> </provides>
+		  <config>
+			  <policy label_prefix="vfs_block"  root="/"  writeable="yes"/>
+		  </config>
+	  </start>
+
+
     <start name="vfs_block" ram="1G">
 		  <provides><service name="Block"/></provides>
 		  <config>
         <vfs>
-          <ram/>
-          <import>
-            <rom name="snapper_block.raw"/>
-          </import>
+          <fs />
 			  </vfs>
 			  <policy label_prefix="vfs"
 			          file="/snapper_block.raw" block_size="512" writeable="yes"/>
       </config>
+      <route>
+        <service name="File_system">
+          <child name="lx_fs"/>
+        </service>
+        <any-service> <parent/> </any-service>
+      </route>
 	  </start>
 
  	  <start name="vfs" ram="24M">
@@ -56,7 +70,7 @@
  	  </start>
 
 
-    <start name="snapper" ram="400M" caps="100">
+    <start name="snapper" ram="399M" caps="100">
       <config
           verbose="true"
           redundancy="2"
@@ -69,9 +83,13 @@
         <rtc/>
 
         <vfs>
-          <fs/>
+          <fs />
         </vfs>
       </config>
+      <route>
+        <service name="File_system"> <child name="vfs"/> </service>
+        <any-service> <parent/> </any-service>
+      </route>
     </start>
   </config>
 
