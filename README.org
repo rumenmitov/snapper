@@ -23,10 +23,10 @@ Install the requirements. This pre-built container image comes with all the depe
 #+end_src
 
 #+begin_quote
-Make sure to setup Genode's build directory before continuing!
+❗ Make sure to setup Genode's build directory before continuing! ❗
 #+end_quote
 
-Add the following to _<genode>/build/x86_64/etc/build.conf_:
+Add the following to /<genode>/build/x86_64/etc/build.conf/:
 
 : REPOSITORIES += $(GENODE_DIR)/repos/wundertuete
 : REPOSITORIES += $(GENODE_DIR)/repos/snapper
@@ -88,7 +88,6 @@ Or, to run the tests:
 Snapper should be configurable through Genode's XML. Here are the configuration options it supports:
 
 #+ATTR_LATEX: :environment longtable :align l|c|p{7cm}
-| <l10>                 |    <c30>     |                                                     <r50> |
 | OPTION                |     TYPE     |                                               DESCRIPTION |
 |-----------------------+--------------+-----------------------------------------------------------|
 | SNAPPER_VERBOSE       |     ~bool~     |                          Whether to print verbose output. |
