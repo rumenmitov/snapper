@@ -2,6 +2,8 @@
 #+author: Rumen Mitov
 #+email: rumen.mitov@constructor.tech
 
+[[./assets/snapper.png]]
+
 Snapper 2.0 (or just Snapper) is a snapshot mechanism for the virtual memory space of the persistent operating system PhantomOS. It uses the a logging file system (e.g. ext4) to ensure that file operations (e.g. modification or deletion) are resistant to OS crashes mid-way through the operation.
 
 A vital property of Snapper is that it needs to be disk space efficient in order not to bloat the file system. This is done by utilizing a mapping from the virtual pages (from now on referred only as pages) to a file containing their contents. Thus if a page remains unchanged its contents will still be mapped to a file from a previous snapshot, hence no new file needs to be created.
