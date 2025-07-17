@@ -78,27 +78,28 @@ Or, to run the tests:
 :properties:
 :custom_id: configuration
 :end:
-Snapper should be configurable through Genode's XML. Here are the configuration options it supports:
+Snapper should be configurable through Genode's XML. The configuration options are stored in ~Snapper::Config~:
 
 #+ATTR_LATEX: :environment longtable :align l|c|p{7cm}
-| OPTION                |     TYPE     |                                               DESCRIPTION |
-|-----------------------+--------------+-----------------------------------------------------------|
-| SNAPPER_VERBOSE       |     ~bool~     |                          Whether to print verbose output. |
-|-----------------------+--------------+-----------------------------------------------------------|
-| SNAPPER_THRESH        | ~unsigned int~ |          The number of files in a _snapshot_ sub-directory. |
-|-----------------------+--------------+-----------------------------------------------------------|
-| SNAPPER_INTEGR        |     ~bool~     |     If true, crash the system on failed integrity checks, |
-|                       |              |                                  otherwise log a warning. |
-|-----------------------+--------------+-----------------------------------------------------------|
-| SNAPPER_REDUND        | ~unsigned int~ |     After reaching this reference count, a redundant file |
-|                       |              |             copy will be created for subsequent snapshot. |
-|-----------------------+--------------+-----------------------------------------------------------|
-| Retention::MAX_SNAPS  | ~unsigned int~ |           The maximum number of complete snapshots inside |
-|                       |              |                                          _<snapper-root>_. |
-|-----------------------+--------------+-----------------------------------------------------------|
-| Retention::MIN_SNAPS  | ~unsigned int~ | The minimum number of generations that need to be present |
-|                       |              |                                   a purge to be possible. |
-|-----------------------+--------------+-----------------------------------------------------------|
-| Retention::EXPIRATION | ~unsigned int~ |             How many seconds a generation should be kept. |
-|                       |  (seconds)   |                                                           |
-|-----------------------+--------------+-----------------------------------------------------------|
+| <l10>         |    <c30>     |                                                     <r50> |
+| OPTION        |     TYPE     |                                               DESCRIPTION |
+|---------------+--------------+-----------------------------------------------------------|
+| verbose       |     ~bool~     |                          Whether to print verbose output. |
+|---------------+--------------+-----------------------------------------------------------|
+| threshold     | ~unsigned int~ |  The maximum number of files in a _snapshot_ sub-directory. |
+|---------------+--------------+-----------------------------------------------------------|
+| integrity     |     ~bool~     |     If true, crash the system on failed integrity checks, |
+|               |              |                                  otherwise log a warning. |
+|---------------+--------------+-----------------------------------------------------------|
+| redundancy    | ~unsigned int~ |     After reaching this reference count, a redundant file |
+|               |              |             copy will be created for subsequent snapshot. |
+|---------------+--------------+-----------------------------------------------------------|
+| max_snapshots | ~unsigned int~ |           The maximum number of complete snapshots inside |
+|               |              |                                           _<snapper-root>_. |
+|---------------+--------------+-----------------------------------------------------------|
+| min_snapshots | ~unsigned int~ | The minimum number of generations that need to be present |
+|               |              |                               for a purge to be possible. |
+|---------------+--------------+-----------------------------------------------------------|
+| expiration    | ~unsigned int~ |             How many seconds a generation should be kept. |
+|               |  (seconds)   |                                                           |
+|---------------+--------------+-----------------------------------------------------------|
