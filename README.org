@@ -65,6 +65,17 @@ To specify the number of snapshot objects that should be in the test simulation 
 : TESTS=50 goa run --pkg snappertests
 
 ** With Run Script
+First build the binaries:
+
+#+begin_src shell
+  goa -C /genode/repos/snapper build --pkg snapper
+
+  goa -C /genode/repos/snapper build --pkg snappertests
+  TESTS=50 goa -C /genode/repos/snapper build --pkg snappertests # number of snapshot objects when testing
+#+end_src
+
+Then run:
+
 #+begin_src shell
   cd /genode
   make -C build/x86_64 run/snapper KERNEL=linux BOARD=linux
