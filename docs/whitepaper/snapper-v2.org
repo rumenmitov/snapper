@@ -29,9 +29,9 @@ In addition to this, Snapper provides integrity checks for individual files in t
 Another use case of the CRC is that it provides a way to know when a new file needs to be created for a snapshot (i.e. when the page has changed since the last snapshot).
 
 ** Redundancy
-The more redundancy there is between snapshots, the more robust the snapshot mechanism is. In order to achieve said redundancy, once a backing file has too many snapshots that depend on it (i.e. its reference count is greater or equal to *SNAPPER_REDUND*) Snapper will create a copy of the file and map all future snapshots with the copy and the original.
+The more redundancy there is between snapshots, the more robust the snapshot mechanism is. In order to achieve said redundancy, once a backing file has too many snapshots that depend on it (i.e. its reference count is greater or equal to ~Snapper::Config::redundancy~) Snapper will create a copy of the file and map all future snapshots with the copy and the original.
 
-By configuring *SNAPPER_REDUND*, the system administrator can control how often redundant file copies are made, leaving them to decide the right balance between robustness and storage usage.
+By configuring ~Snapper::Config::redundancy~, the system administrator can control how often redundant file copies are made, leaving them to decide the right balance between robustness and storage usage.
 
 #+LATEX: \clearpage
 
@@ -63,7 +63,7 @@ By configuring *SNAPPER_REDUND*, the system administrator can control how often 
 | Genode Compatibility |                         compatible                          |                       compatible                        |
 | Makes Use of Ext4    |                             n/a                             |           uses ext4's journaling capabilities           |
 
-While Superblock has a fair amount of redundancy, a system administrator does not have the same level of control as with Snapper 2.0. Once a superblock is created a copy of it is saved in another location on disk. In contrast, Snapper 2.0 supports multiple copies of the same file. The system administrator can decide how often these copies are made by setting the constant *SNAPPER_REDUND*.
+While Superblock has a fair amount of redundancy, a system administrator does not have the same level of control as with Snapper 2.0. Once a superblock is created a copy of it is saved in another location on disk. In contrast, Snapper 2.0 supports multiple copies of the same file. The system administrator can decide how often these copies are made by setting the constant ~Snapper::Config::redundancy~.
 
 A limitation of the Superblock implementation is that it has no support for multiple generations of snapshots. The mechanism only keeps a superblock of the current system state along with a redundant copy of it. While this serves the primary use case for a snapshot (that being restoring the system state after a crash), it lacks the flexibility of Snapper 2.0 when it comes to multiple versions of the system.
 
@@ -240,7 +240,7 @@ The structure of the snapshot file is as follows:
 | data   | as required | the saved page contents              |
 
 ** The Extender Directory
-The extender directory is used to reduce the load on the filesystem. Since performance can be impacted if too many files are in the same directory, after a certain number (~SNAPPER_THRESH~), a sub-directory will be created called _ext_ and subsequent snapshot files will be stored within it, instead of the current one. Important to note is that the incremental counter used to name the snapshot files resets within the extender directory.
+The extender directory is used to reduce the load on the filesystem. Since performance can be impacted if too many files are in the same directory, after a certain number (~Snapper::Config::threshold~), a sub-directory will be created called _ext_ and subsequent snapshot files will be stored within it, instead of the current one. Important to note is that the incremental counter used to name the snapshot files resets within the extender directory.
 
 ** The Snapshot Directory
 This directory is organized as a radix trie containing all snapshot files of pages that have changed since the last generation. Files are added in the extender directories. The extender directories are removed if their last entity (file or sub-directory) gets removed.
@@ -254,6 +254,18 @@ The generation directory is removed when both the snapshot directory and the arc
 
 * The Snapper Mechanism
 ** Snapshot Step
+The rationale behind this step is to use a file (the archive file) to keep track of the snapshot file(s) (a.k.a backlinks) of the pages. This allows for a single source of truth. If the archive file is corrupted it must be replaced with a [[#backups][backup]] version of the file.
+
+Each snapshot file must keep a reference count which keep track of the number of generations that need this file. Should the reference count exceed ~Snapper::Config::redundancy~ a new snapshot file will be created to store the data. Both the new file and the old file will be stored as backlinks for later snapshots.
+
+The snapshot process has been designed to allow the snapshot of individual pages to be done at an arbitrary time. For example, the user can snapshot the first n-pages, then do some computations, and then snapshot the rest of the pages. This is not recommended as the state could have changed for the first n-pages before the rest are saved in the snapshot, hence leading to an inconsistent system state. It is up to the user to determine if it is more desirable to "pause" the snapshot process, or do it all in one go.
+
+In order to support this flexibility, the Snapper initiate the snapshot procedure. Once this procedure is active the only Snapper operation allowed is the taking of snapshots (i.e. recovering and purging are disallowed). Once all pages have been captured in the snapshot, the generation will be committed and Snapper will be returned to its dormant state.
+
+In terms of performance, the taking of snapshots is cheap as it comprises a dictionary lookup, and in the worst case (the page's contents do not appear in a prior generation): a write to a file. The true cost comes when committing the generation. The ~Snapper::Archiver~ is written to the generation's archive file. Consequently, for each and every backlink present in ~Snapper::Archiver~, the backlink's reference count is incremented. This involves copy operations on all backlink files (Genode's VFS does not support writing in arbitrary locations in a file).
+
+A possible way to avoid so many write operations at once, could be to increment the reference count when taking the snapshot of the pages. Unfortunately, that could lead to "zombie files" if the system crashes before the generation is committed (and the archive file is written). If no archive file has any mention of a snapshot file, then that file will never be deleted as its reference count falsely indicates that the file is still being needed.
+
 1. If the _latest_ generation does not have a valid archive file, delete it (the generation is incomplete).
 2. Initialize a new generation directory with an RTC timestamp as the name.
 3. Within the generation directory create the archive file and the snapshot directory.
@@ -264,11 +276,11 @@ The generation directory is removed when both the snapshot directory and the arc
    2. Initialize the snapshot file with the new CRC of the data, a reference count of 1, and the binary data of p_{i}.
    3. Update ~Snapper::Archiver[i]~ \gets /path(/ h_{j} /)/, there /path()/ is the path relative to _<snapper-root>_.
 7. For each p_{i} \in P where CRC of the file h_{i} matches the CRC of p_{i}:
-   1. If the file h_{i} has a reference count greater than or equal to *SNAPPER_REDUND*:
+   1. If the file h_{i} has a reference count greater than or equal to ~Snapper::Config::redundancy~:
       1. Create a new file h_{j} as outlined in Step 6.
       2. Increment the reference count for all files in ~Snapper::Archiver[i]~.
       2. Enqueue /path(/ h_{j} /)/ to ~Snapper::Archiver[i]~.
-   2. If the file h_{i} has a reference count lower than *SNAPPER_REDUND*, increment the reference count of it and all other redundant files in ~Snapper::Archiver[i]~.
+   2. If the file h_{i} has a reference count lower than ~Snapper::Config::redundancy~, increment the reference count of it and all other redundant files in ~Snapper::Archiver[i]~.
 8. Save ~Snapper::Archiver~ into the archive file and calculate its CRC.
 
 #+LATEX: \clearpage
@@ -277,7 +289,12 @@ The generation directory is removed when both the snapshot directory and the arc
 :properties:
 :custom_id: recovery-step
 :end:
-# TODO add a description on why (pros / cons), perf, band (disk / cpu)
+This step uses the archive file to efficiently lookup the data belonging to a page. The recovery process is flexible enough to allow partial recovery, i.e. the user recovers only the pages that they need. The pages can be recovered at any time while the recovery procedure is active. Throughout the recovery process all other Snapper procedures are disallowed.
+
+Entry lookups happen in logarithmic time due to Genode's Dictionary use of AVL-trees. Additionally, in the case that an archive entry's backlinks are invalid a linear search through a queue is used until a valid backlink is found or the queue is exhausted.
+
+A downside to the lookup table being loaded in memory is that more information (i.e. entries and backlinks) result in heavier RAM usage.
+
 1. Choose a generation to boot from (by default the latest one).
 2. Check if the generation is valid (i.e. has an archive file with a valid CRC). If not, recovery is not possible.
 3. Load the archive file of the latest valid generation into ~Snapper::Archiver~.
@@ -291,13 +308,15 @@ The generation directory is removed when both the snapshot directory and the arc
 :properties:
 :custom_id: purge-step
 :end:
-Note, that when a file's reference count is decremented to 0, the file is removed. If a directory becomes empty as a result, it is removed.
+To purge a generation, the archive file is loaded into memory and each backlink's reference count is decremented. When a file's reference count is decremented to 0, the file is removed. If a directory becomes empty as a result, it is removed. This ensures that all files needed by other generations are kept in the same place, and everything else is properly cleaned up.
+
+The worst case of this approach would be that a snapshot file could be many sub-directories deep and while it is needed all those sub-directories will remain. This cost is minimal and necessary as the alternative would be to move the file higher in the directory structure, then search for all references to that file in all of the other archive files and update the path, a much more costly endeavor.
 
 1. Make sure the generation is valid (i.e. it has an archive file with a valid CRC).
 2. If the archive file has an invalid CRC:
-   1. If *SNAPPER_INTEGR* is set to true, crash the system and ask the system administrator to replace the generation's corrupted archive file with a backup copy.
+   1. If ~Snapper::Config::integrity~ is set to true, crash the system and ask the system administrator to replace the generation's corrupted archive file with a backup copy.
 
-      Note, that if no backup copy exists it is highly recommended to manually remove the current generation as well as all subsequent generations. Snapper can continue to function without the removal, but the broken generation and its files will never be removed. Alternatively, the administrator could manually remove the broken generation and set *SNAPPER_INTEGR* to false. That way any snapshots that relied on the broken generation will only output warnings but will not crash the system if they are unable to recover a file.
+      Note, that if no backup copy exists it is highly recommended to manually remove the current generation as well as all subsequent generations. Snapper can continue to function without the removal, but the broken generation and its files will never be removed. Alternatively, the administrator could manually remove the broken generation and set ~Snapper::Config::integrity~ to false. That way any snapshots that relied on the broken generation will only output warnings but will not crash the system if they are unable to recover a file.
       
    2. Otherwise, log an error message and boot the system into a clean state.
 3. If the archive file has a valid CRC:
@@ -309,28 +328,42 @@ Note, that when a file's reference count is decremented to 0, the file is remove
 The following complexity analysis uses the following assumptions:
 - let P be the set of all virtual pages, and let p = |P|
 - let H be the set of all entries in the mapping stored in an archive file, and let h = |H|
+- let B be the set of all backlinks present in an archive file, and let b = |B|
 
   
+#+begin_quote
+NOTE: Since Genode's Dictionary uses an AVL-tree, all Dictionary lookups are O(log(n)).
+#+end_quote
+
 #+ATTR_LATEX: :environment longtable :align l|c|c|p{4cm}
-| <l>                      |       <c>       |       <c>        | <l>                   |
-| Use-Case                 | Time Complexity | Space Complexity | Regularity            |
-|--------------------------+-----------------+------------------+-----------------------|
-| Take the first snapshot. |      O(p)       |       O(p)       | Ideally only once.    |
-|--------------------------+-----------------+------------------+-----------------------|
-| Take a snapshot.         |      O(p)       |       O(p)       | Determined by the     |
-|                          |                 |                  | configured policy.    |
-|--------------------------+-----------------+------------------+-----------------------|
-| Recover a generation.    |      O(h)       |       O(1)       | Every time the system |
-|                          |                 |                  | boots up.             |
-|--------------------------+-----------------+------------------+-----------------------|
-| Purge a generation.      |      O(h)       |       O(1)       | Determined by the     |
-|                          |                 |                  | configured policy.    |
-|--------------------------+-----------------+------------------+-----------------------|
+| <l>                       |       <c>       |       <c>        | <l>                     |
+| Use-Case                  | Time Complexity | Space Complexity | Regularity              |
+|---------------------------+-----------------+------------------+-------------------------|
+| Begin snapshot procedure. |      O(1)       |       O(1)       | Determined by the       |
+|                           |                 |                  | configured policy.      |
+|---------------------------+-----------------+------------------+-------------------------|
+| Take a snapshot.          |    O(log(h))    |       O(1)       | Every time a page needs |
+|                           |                 |                  | needs to be backed-up.  |
+|---------------------------+-----------------+------------------+-------------------------|
+| Commit generation.        |      O(b)       |    O(b)[fn:4]    | When snapshot process   |
+|                           |                 |                  | is completed.           |
+|---------------------------+-----------------+------------------+-------------------------|
+| Begin recovery procedure. |      O(b)       |       O(b)       | When the system boots.  |
+|---------------------------+-----------------+------------------+-------------------------|
+| Recover a page.           |    O(log(h))    |       O(1)       | For each page that      |
+|                           |                 |                  | needs to be recovered.  |
+|---------------------------+-----------------+------------------+-------------------------|
+| Finish recovery.          |      O(1)       |       O(1)       | When all pages have     |
+|                           |                 |                  | been recovered.         |
+|---------------------------+-----------------+------------------+-------------------------|
+| Purge a generation.       |      O(b)       |       O(b)       | Determined by the       |
+|                           |                 |                  | configured policy.      |
+|---------------------------+-----------------+------------------+-------------------------|
 
 #+LATEX: \clearpage
 
 * Remarks on the Implementation of Snapper
-Snapper should be able to be implemented via the Genode's API and provided data structures and the lwext4 library[fn:4]. I was unable to get Genode's libc to work with PhantomOS so unfortunately libc is not viable for Snapper. Having this constraint in mind, here are what Snapper was optimized for:
+Snapper should be able to be implemented via the Genode's API and provided data structures and the lwext4 library[fn:5]. I was unable to get Genode's libc to work with PhantomOS so unfortunately libc is not viable for Snapper. Having this constraint in mind, here are what Snapper was optimized for:
 
 ** Fast Insertion of Data
 Insertion of new data during the snapshot procedure is relatively fast. All that is needed is to compute the CRC of the data and to write both the data and its CRC into a file. 
@@ -339,7 +372,7 @@ Insertion of new data during the snapshot procedure is relatively fast. All that
 :properties:
 :custom_id: redundancy
 :end:
-Snapper allows the set of the data redundancy by allowing a file to have redundant copies (i.e. backlinks) after its reference count meets or exceeds *SNAPPER_REDUND*. The archive file then links the virtual page to a comma separated list of files from older generations that store identical data. This redundancy comes at the cost of the following:
+Snapper allows the set of the data redundancy by allowing a file to have redundant copies (i.e. backlinks) after its reference count meets or exceeds ~Snapper::Config::redundancy~. The archive file then links the virtual page to a comma separated list of files from older generations that store identical data. This redundancy comes at the cost of the following:
 - slower insertions (due to additional string manipulations)
 - higher disk usage (due to archive entries having longer strings)
 
@@ -371,17 +404,17 @@ The code in this section requires the ~SnapperNS~ namespace. Error handling has 
 This step is *required* to use any functionality of Snapper. You can initialize the global object with:
 
 #+begin_src c++
-  snapper = Snapper::new_snapper(env, config);
+  snapper = Snapper::new_snapper(env);
 #+end_src
 
-Here ~env~ is the ~Genode::Env&~ object created at the start of the Genode program. The Snapper configuration can be passed via the ~config~ parameter. For possible options see [[#configuration][Configuration]].
+Here ~env~ is the ~Genode::Env&~ object created at the start of the Genode program. 
 
 ** Creating A Snapshot
 Make sure [[#init-snapper][Snapper is initialized]].
 
 **** Prepare the Snapper object for the snapshot procedure.
 #+begin_src c++
-  snapper->init_snapshot();
+  snapper->init_snapshot(); // OPTIONAL pass in specific generation
 #+end_src
 
 **** For each component's data that should be saved in the snapshot.
@@ -455,6 +488,9 @@ In the case when the system crashes midway through a snapshot, the latest genera
 If the system detects that disk space is running low, it will run the [[#purge-step][Purge]] algorithm on the oldest generation until either disk usage is back to a acceptable level.
 
 * Backups
+:properties:
+:custom_id: backups
+:end:
 Although Snapper can detect when snapshot files or archive files have been corrupted, it only supports redundancy when it comes to snapshot files (see the [[#redundancy][Data Redundancy]] section for more details). However, archive files can be corrupted as well. Snapper *does not concern itself with providing redundancy for the archive files*. The reason for this decision is that there are many variables that a system administrator might want to tweak when backing up files that govern how a generation is to be recovered.
 
 For instance, should the backup archive files be saved on a different disk? Should archive backup files from different systems be stored together? How should the backup files be named to differentiate them from one another?
@@ -471,57 +507,57 @@ It is *highly recommended* to backup archive files! If an archive file were to b
 :properties:
 :custom_id: configuration
 :end:
-Snapper should be configurable through Genode's XML. Here are the configuration options it will support:
+Snapper should be configurable through Genode's XML. The configuration options are stored in ~Snapper::Config~:
 
 #+ATTR_LATEX: :environment longtable :align l|c|p{7cm}
-| <l10>                 |    <c30>     |                                                     <r50> |
-| OPTION                |     TYPE     |                                               DESCRIPTION |
-|-----------------------+--------------+-----------------------------------------------------------|
-| SNAPPER_VERBOSE       |     ~bool~     |                          Whether to print verbose output. |
-|-----------------------+--------------+-----------------------------------------------------------|
-| SNAPPER_THRESH        | ~unsigned int~ |          The number of files in a _snapshot_ sub-directory. |
-|-----------------------+--------------+-----------------------------------------------------------|
-| SNAPPER_INTEGR        |     ~bool~     |     If true, crash the system on failed integrity checks, |
-|                       |              |                                  otherwise log a warning. |
-|-----------------------+--------------+-----------------------------------------------------------|
-| SNAPPER_REDUND        | ~unsigned int~ |     After reaching this reference count, a redundant file |
-|                       |              |             copy will be created for subsequent snapshot. |
-|-----------------------+--------------+-----------------------------------------------------------|
-| Retention::MAX_SNAPS  | ~unsigned int~ |           The maximum number of complete snapshots inside |
-|                       |              |                                          _<snapper-root>_. |
-|-----------------------+--------------+-----------------------------------------------------------|
-| Retention::MIN_SNAPS  | ~unsigned int~ | The minimum number of generations that need to be present |
-|                       |              |                                   a purge to be possible. |
-|-----------------------+--------------+-----------------------------------------------------------|
-| Retention::EXPIRATION | ~unsigned int~ |             How many seconds a generation should be kept. |
-|                       |  (seconds)   |                                                           |
-|-----------------------+--------------+-----------------------------------------------------------|
+| <l10>         |    <c30>     |                                                     <r50> |
+| OPTION        |     TYPE     |                                               DESCRIPTION |
+|---------------+--------------+-----------------------------------------------------------|
+| verbose       |     ~bool~     |                          Whether to print verbose output. |
+|---------------+--------------+-----------------------------------------------------------|
+| threshold     | ~unsigned int~ |  The maximum number of files in a _snapshot_ sub-directory. |
+|---------------+--------------+-----------------------------------------------------------|
+| integrity     |     ~bool~     |     If true, crash the system on failed integrity checks, |
+|               |              |                                  otherwise log a warning. |
+|---------------+--------------+-----------------------------------------------------------|
+| redundancy    | ~unsigned int~ |     After reaching this reference count, a redundant file |
+|               |              |             copy will be created for subsequent snapshot. |
+|---------------+--------------+-----------------------------------------------------------|
+| max_snapshots | ~unsigned int~ |           The maximum number of complete snapshots inside |
+|               |              |                                           _<snapper-root>_. |
+|---------------+--------------+-----------------------------------------------------------|
+| min_snapshots | ~unsigned int~ | The minimum number of generations that need to be present |
+|               |              |                               for a purge to be possible. |
+|---------------+--------------+-----------------------------------------------------------|
+| expiration    | ~unsigned int~ |             How many seconds a generation should be kept. |
+|               |  (seconds)   |                                                           |
+|---------------+--------------+-----------------------------------------------------------|
 
 
 #+LATEX: \clearpage
 
 ** Verbose Output
-*SNAPPER_VERBOSE* (default = false) toggles verbose output.
+~Snapper::Config::verbose~ (default = false) toggles verbose output.
 
 ** Directory Load
-*SNAPPER_THRESH* (default = 100) can be set to determine the maximum number of snapshot files within a _snapshot_ sub-directory. After the number of files exceeds this threshold, an extender directory will be created and all subsequent files will be placed within said directory.
+~Snapper::Config::threshold~ (default = 100) can be set to determine the maximum number of snapshot files within a _snapshot_ sub-directory. After the number of files exceeds this threshold, an extender directory will be created and all subsequent files will be placed within said directory.
 
 ** Integrity Checks
-*SNAPPER_INTEGR* (default = true), when true, will crash the system during the [[#recovery-step][Recovery Step]] if a mapping in the archive file does not provide a single valid snapshot file. On false, Snapper will just log an error and ignore the restoration of that page.
+~Snapper::Config::integrity~ (default = true), when true, will crash the system during the [[#recovery-step][Recovery Step]] if a mapping in the archive file does not provide a single valid snapshot file. On false, Snapper will just log an error and ignore the restoration of that page.
 
-Likewise when an archive file fails its CRC check, the system will crash if *SNAPPER_INTEGR* is set to true. Otherwise, an error will be logged and the system will boot without recovering that generation.
+Likewise when an archive file fails its CRC check, the system will crash if ~Snapper::Config::integrity~ is set to true. Otherwise, an error will be logged and the system will boot without recovering that generation.
 
 ** Redundancy Level
-*SNAPPER_REDUND* (default = 3) determines the maximum number of generations that a snapshot file appears in before another backlink is created.
+~Snapper::Config::redundancy~ (default = 3) determines the maximum number of generations that a snapshot file appears in before another backlink is created.
 
 ** Retention Policy
 Snapper's retention policy will determine which /completed/ generations are kept and which are [[#purge-step][purged]].
 
 *** Limit by Number
-The number of completed generations kept will be limited to *Retention::MAX_SNAPS*. This retention policy is disabled if that number is 0 (default). Conversely, the [[#purge-step][Purge Step]] will fail if the number of generations is lower than *Retention::MIN_SNAPS* (default = 0).
+The number of completed generations kept will be limited to ~Snapper::Config::max_snapshots~. This retention policy is disabled if that number is 0 (default). Conversely, the [[#purge-step][Purge Step]] will fail if the number of generations is lower than ~Snapper::Config::min_snapshots~ (default = 0).
 
 *** Limit by Expiration
-If a generation is older than *Retention::EXPIRATION* seconds it will be purged. This can be disabled by setting *Retention::EXPIRATION* to 0 (the default).
+If a generation is older than ~Snapper::Config::expiration~ seconds it will be purged. This can be disabled by setting ~Snapper::Config::expiration~ to 0 (the default).
 
 * Conclusion
 Snapper 2.0 efficiently manages PhantomOS snapshots by storing only changed data, reducing disk usage, and ensuring data integrity with ext4's logging features. It overcomes previous limitations with a robust mapping strategy and reference counting for file management. The dynamic directory structure enhances performance, while configurable retention policies and fail-safe mechanisms improve system resilience. Despite some challenges, Snapper provides a strong foundation for effective snapshot management in PhantomOS.
@@ -534,4 +570,6 @@ Snapper 2.0 efficiently manages PhantomOS snapshots by storing only changed data
 
 [fn:3] In Snapper's implementation the archive file will contain binary data. The example uses plaintext for demonstration purposes.
 
-[fn:4] https://codeberg.org/jws/genode-wundertuete/src/branch/sculpt-24.04-2024-04-19
+[fn:4] O(b) because the entire ~Snapper::Archive~, which contains all the backlinks, needs to be written to the archive file.
+
+[fn:5] https://codeberg.org/jws/genode-wundertuete/src/branch/sculpt-24.04-2024-04-19
