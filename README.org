@@ -33,25 +33,14 @@ Add the following to /<genode>/build/x86_64/etc/build.conf/:
 
 Optionally add the Lwext plugin:
 
-#+begin_src shell
-  git clone https://codeberg.org/jws/genode-wundertuete.git genode/repos/wundertuete
-
-  cd genode/repos/wundertuete
-
-  git switch 25.05-2025-07-07
-
-  cd -
-#+end_src
+: git clone -b 25.05-2025-07-07 --depth 1 https://codeberg.org/jws/genode-wundertuete.git genode/repos/wundertuete
 
 Run this inside the container:
 
 #+begin_src shell
   /genode/tool/ports/prepare_port lwext4
   DEPOT_DIR=/genode/repos/snapper/var/depot goa depot-dir
-  DEPOT_DIR=/genode/repos/snapper/var/depot /genode/tool/depot/create rumen/bin/x86_64/vfs_lwext4
-
-  echo "rumen/src/vfs_lwext4/$(date +%Y-%m-%d)" >> /genode/repos/snapper/pkg/snapper/archives
-  echo "rumen/src/vfs_lwext4/$(date +%Y-%m-%d)" >> /genode/repos/snapper/pkg/snappertests/archives
+  DEPOT_DIR=/genode/repos/snapper/var/depot FORCE_VERSION=2025-07-09 /genode/tool/depot/create rumen/bin/x86_64/vfs_lwext4
 
   mkdir /genode/repos/snapper/raw
   dd if=/dev/zero of=/genode/repos/snapper/raw/snapper_block.raw bs=1M seek=16 count=0
