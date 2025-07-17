@@ -51,6 +51,10 @@ Run this inside the container:
 If you are using the container, the following should be run inside the container.
 
 ** With Goa
+:properties:
+:custom_id: with-goa
+:end:
+
 #+begin_src shell
   cd /genode/repos/snapper
   goa run --pkg snapper
@@ -65,16 +69,6 @@ To specify the number of snapshot objects that should be in the test simulation 
 : TESTS=50 goa run --pkg snappertests
 
 ** With Run Script
-First build the binaries:
-
-#+begin_src shell
-  goa -C /genode/repos/snapper build --pkg snapper
-
-  goa -C /genode/repos/snapper build --pkg snappertests
-  TESTS=50 goa -C /genode/repos/snapper build --pkg snappertests # number of snapshot objects when testing
-#+end_src
-
-Then run:
 
 #+begin_src shell
   cd /genode
@@ -84,6 +78,14 @@ Then run:
 Or, to run the tests:
 
 : make -C build/x86_64 run/snappertests KERNEL=linux BOARD=linux
+
+To (optionally) specify how many test objects to create (see [[#with-goa][Running With Goa]] for more details):
+
+: TESTS=50 make -C build/x86_64 run/snappertests KERNEL=linux BOARD=linux
+
+#+begin_quote
+NOTE: On subsequent runs, if you want to change ~TESTS~, you have to ~rm -rf /genode/build/x86_64/test/snapper/~ before running.
+#+end_quote
 
 * Configuration of Snapper
 :properties:
