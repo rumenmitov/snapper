@@ -60,7 +60,7 @@ test_snapshot_creation (void)
       TEST (false);
     }
 
-  for (int i = 1; i <= 1000; i++)
+  for (int i = 1; i <= TESTS; i++)
     {
       if (snapper->take_snapshot (&i, sizeof (decltype (i)), i) != Snapper::Ok)
         {
@@ -85,7 +85,7 @@ test_successful_recovery (void)
   if (snapper->open_generation () != Snapper::Ok)
     TEST (false);
 
-  for (int i = 1; i <= 1000; i++)
+  for (int i = 1; i <= TESTS; i++)
     {
       snapper->restore (&value, size, i);
       if (value != i)
@@ -122,5 +122,5 @@ Component::construct (Genode::Env &env)
   summary ();
   Genode::log ("\n-*- SNAPPER TESTS DONE -*-");
 
-  env.parent().exit((successful_tests == total_tests) ? 0 : 1);
+  env.parent ().exit ((successful_tests == total_tests) ? 0 : 1);
 }

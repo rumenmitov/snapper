@@ -60,6 +60,10 @@ This will run the main Snapper binary. If instead you want to run the tests:
 
 : goa run --pkg snappertests
 
+To specify the number of snapshot objects that should be in the test simulation (~TESTS~ defaults to 1000):
+
+: TESTS=50 goa run --pkg snappertests
+
 ** With Run Script
 #+begin_src shell
   cd /genode

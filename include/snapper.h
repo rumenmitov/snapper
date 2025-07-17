@@ -63,6 +63,22 @@ namespace SnapperNS
 
     /**
      * @brief Stores the configuration for the Snapper object.
+     * @field verbose 					Whether to print verbose output.
+     * @field redundancy				After reaching this reference count, a
+     *                          redundant file copy will be created
+     *                          for subsequent snapshot.
+     * @field integrity 				If true, crash the system on failed
+     *                          integrity checks, otherwise log a
+     *                          warning.
+     * @field threshold 				The maximum number of files in a snapshot
+     *                          sub-directory.
+     * @field max_snapshots	  	The maximum number of complete
+     *                          snapshots inside <snapper-root>.
+     * @field min_snapshots	  	The minimum number of generations that
+     *                          need to be present for a purge to be
+     *                          possible.
+     * @field expiration		  	How many seconds a generation should
+     *                          be kept.
      */
     struct Config
     {
@@ -85,7 +101,7 @@ namespace SnapperNS
       Genode::uint64_t min_snapshots = _min_snapshots;
       Genode::uint64_t expiration = _expiration;
 
-    } snapper_config;
+    } config;
 
     /**
      * @brief Keeps track of which files are backing up which virtual
@@ -170,7 +186,7 @@ namespace SnapperNS
       void remove (const ArchiveKey);
     };
 
-    Genode::Attached_rom_dataspace config;
+    Genode::Attached_rom_dataspace rom;
 
     Genode::Heap heap;
     Genode::Root_directory snapper_root;

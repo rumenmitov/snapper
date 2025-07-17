@@ -8,6 +8,11 @@ if (VERBOSE)
   add_definitions(-DVERBOSE)
 endif()
 
+if(NOT DEFINED ENV{TESTS})
+    set(ENV{TESTS} 1000)
+endif()
+add_definitions(-DTESTS=$ENV{TESTS})
+
 # Main Executables
 add_executable(snapper snapper/main.cc)
 add_executable(snappertests test/snapper/main.cc)

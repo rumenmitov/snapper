@@ -45,7 +45,7 @@ namespace SnapperNS
           entry->queue.enqueue (*backlink);
         });
 
-    if (snapper->snapper_config.verbose)
+    if (snapper->config.verbose)
       {
         Genode::log ("archive entry inserted: ", key, " -> \"",
                      backlink->value, "\"");
@@ -65,13 +65,13 @@ namespace SnapperNS
           Genode::destroy (snapper->heap, entry._self);
         },
         [key] () {
-          if (snapper->snapper_config.verbose)
+          if (snapper->config.verbose)
             {
               Genode::warning ("no such key exists in archive: ", key);
             }
         });
 
-    if (snapper->snapper_config.verbose)
+    if (snapper->config.verbose)
       {
         Genode::log ("archive entry removed: ", key);
       }

@@ -155,44 +155,44 @@ namespace SnapperNS
    * snapshot_dir_path.
    */
   Snapper::Snapper (Genode::Env &env)
-      : snapper_config (), config (env, "config"),
+      : config (), rom (env, "config"),
         heap (env.ram (), env.rm ()),
-        snapper_root (env, heap, config.xml ().sub_node ("vfs")), rtc (env),
+        snapper_root (env, heap, rom.xml ().sub_node ("vfs")), rtc (env),
         generation (static_cast<Vfs::Simple_env &> (snapper_root)),
         snapshot (static_cast<Vfs::Simple_env &> (snapper_root)),
         snapshot_dir_path ("/"), archiver ()
   {
-    snapper_config.verbose
-        = config.xml ().attribute_value<decltype (Snapper::Config::verbose)> (
+    config.verbose
+        = rom.xml ().attribute_value<decltype (Snapper::Config::verbose)> (
             "verbose", Snapper::Config::_verbose);
 
-    snapper_config.redundancy
-        = config.xml ()
+    config.redundancy
+        = rom.xml ()
               .attribute_value<decltype (Snapper::Config::redundancy)> (
                   "redundancy", Snapper::Config::_redundancy);
 
-    snapper_config.integrity
-        = config.xml ()
+    config.integrity
+        = rom.xml ()
               .attribute_value<decltype (Snapper::Config::integrity)> (
                   "integrity", Snapper::Config::_integrity);
 
-    snapper_config.threshold
-        = config.xml ()
+    config.threshold
+        = rom.xml ()
               .attribute_value<decltype (Snapper::Config::threshold)> (
                   "threshold", Snapper::Config::_threshold);
 
-    snapper_config.max_snapshots
-        = config.xml ()
+    config.max_snapshots
+        = rom.xml ()
               .attribute_value<decltype (Snapper::Config::max_snapshots)> (
                   "max_snapshots", Snapper::Config::_max_snapshots);
 
-    snapper_config.min_snapshots
-        = config.xml ()
+    config.min_snapshots
+        = rom.xml ()
               .attribute_value<decltype (Snapper::Config::min_snapshots)> (
                   "min_snapshots", Snapper::Config::_min_snapshots);
 
-    snapper_config.expiration
-        = config.xml ()
+    config.expiration
+        = rom.xml ()
               .attribute_value<decltype (Snapper::Config::expiration)> (
                   "expiration", Snapper::Config::_expiration);
   }
@@ -205,7 +205,7 @@ namespace SnapperNS
 
     instance = nullptr;
 
-    if (snapper_config.verbose)
+    if (config.verbose)
       Genode::log ("snapper object destroyed.");
   }
 
@@ -220,7 +220,7 @@ namespace SnapperNS
 
     Snapper::instance = &local_snapper;
 
-    if (Snapper::instance->snapper_config.verbose)
+    if (Snapper::instance->config.verbose)
       Genode::log ("new snapper object created.");
 
     return Snapper::instance;
@@ -282,7 +282,7 @@ namespace SnapperNS
                 [this, backlink, &new_file_needed] (Snapper::VERSION version) {
                   if (version != Version)
                     {
-                      if (snapper_config.verbose)
+                      if (config.verbose)
                         Genode::log ("backlink has a version mismatch: ",
                                      backlink.value,
                                      ". Creating a new snapshot file.");
@@ -311,7 +311,7 @@ namespace SnapperNS
                  &new_file_needed] (Snapper::CRC file_crc) {
                   if (file_crc != crc)
                     {
-                      if (snapper_config.verbose)
+                      if (config.verbose)
                         Genode::log (
                             "backlink has a mismatching crc: ", backlink.value,
                             ". Creating new snapshot file.");
@@ -337,9 +337,9 @@ namespace SnapperNS
 
             backlink.get_reference_count ().with_result (
                 [this, &backlink, &new_file_needed] (Snapper::RC rc) {
-                  if (rc >= snapper_config.redundancy)
+                  if (rc >= config.redundancy)
                     {
-                      if (snapper_config.verbose)
+                      if (config.verbose)
                         Genode::log ("backlink reference count exceeded: ",
                                      backlink.value,
                                      ". Creating redundant copy.");
@@ -382,7 +382,7 @@ namespace SnapperNS
     total_snapshot_objects++;
     snapshot_file_count++;
 
-    if (snapshot_file_count >= snapper_config.threshold)
+    if (snapshot_file_count >= config.threshold)
       {
         snapshot->create_sub_directory ("ext");
         if (!snapshot->directory_exists ("ext"))
@@ -480,7 +480,7 @@ namespace SnapperNS
 
         if (!archiver.constructed ())
           {
-            if (snapper_config.verbose)
+            if (config.verbose)
               {
                 Genode::log ("archiver is empty! Aborting the snapshot.");
               }
@@ -595,7 +595,7 @@ namespace SnapperNS
 
     __update_references ();
 
-    if (snapper_config.verbose)
+    if (config.verbose)
       Genode::log ("generation committed successfully!");
 
     __reset_gen ();
@@ -653,7 +653,7 @@ namespace SnapperNS
                 [this, backlink, &res] (Snapper::VERSION version) {
                   if (version != Version)
                     {
-                      if (snapper_config.verbose)
+                      if (config.verbose)
                         Genode::warning ("backlink has a wrong version: ",
                                          backlink.value);
                       res = InvalidVersion;
@@ -662,7 +662,7 @@ namespace SnapperNS
                     res = Ok;
                 },
                 [this, backlink, &res] (Snapper::Archive::Backlink::Error) {
-                  if (snapper_config.verbose)
+                  if (config.verbose)
                     Genode::warning ("could not access backlink's version: ",
                                      backlink.value);
                   res = InvalidVersion;
@@ -675,7 +675,7 @@ namespace SnapperNS
             backlink.get_integrity ().with_result (
                 [&crc] (Snapper::CRC _crc) { crc = _crc; },
                 [this, backlink, &res] (Snapper::Archive::Backlink::Error) {
-                  if (snapper_config.verbose)
+                  if (config.verbose)
                     {
                       Genode::warning ("could not access backlink's crc: ",
                                        backlink.value);
@@ -695,7 +695,7 @@ namespace SnapperNS
 
             if (crc32 (buf.start, buf.num_bytes) != crc)
               {
-                if (snapper_config.verbose)
+                if (config.verbose)
                   Genode::warning (
                       "backlink has an invalid CRC: ", backlink.value,
                       "! remove it to "
@@ -740,7 +740,7 @@ namespace SnapperNS
         return InvalidState;
       }
 
-    if (__num_gen () - 1 < snapper_config.min_snapshots)
+    if (__num_gen () - 1 < config.min_snapshots)
       {
         Genode::error ("purging generation will reduce snapshot count to less "
                        "than allowed!");
@@ -769,7 +769,7 @@ namespace SnapperNS
 
     if (_gen == "")
       {
-        if (snapper->snapper_config.verbose)
+        if (snapper->config.verbose)
           Genode::log ("no generation exists for purging");
 
         goto CLEAN_RET;
@@ -798,7 +798,7 @@ namespace SnapperNS
                           if (backlink.set_reference_count (reference_count)
                                   .failed ())
                             {
-                              if (snapper->snapper_config.integrity)
+                              if (snapper->config.integrity)
                                 throw CrashStates::REF_COUNT_FAILED;
 
                               remove = true;
@@ -808,7 +808,7 @@ namespace SnapperNS
                         remove = true;
                     },
                     [&remove] (Archive::Backlink::Error) {
-                      if (snapper->snapper_config.integrity)
+                      if (snapper->config.integrity)
                         throw CrashStates::REF_COUNT_FAILED;
 
                       remove = true;
@@ -833,7 +833,7 @@ namespace SnapperNS
     __delete_upwards (Genode::Directory::join (_gen, "archive").string ());
     __reset_gen ();
 
-    if (snapper_config.verbose)
+    if (config.verbose)
       Genode::log ("purged: \"", _gen, "\"");
 
   CLEAN_RET:
@@ -846,11 +846,11 @@ namespace SnapperNS
   {
     Genode::uint64_t num_gen = __num_gen ();
 
-    while (snapper_config.max_snapshots
-           && num_gen > snapper_config.max_snapshots
-           && num_gen > snapper_config.min_snapshots)
+    while (config.max_snapshots
+           && num_gen > config.max_snapshots
+           && num_gen > config.min_snapshots)
       {
-        if (snapper_config.verbose)
+        if (config.verbose)
           Genode::log ("snaphots exceed max number, purging oldest");
 
         if (purge () != Ok)
@@ -868,12 +868,12 @@ namespace SnapperNS
         num_gen = __num_gen ();
       }
 
-    if (!snapper_config.expiration)
+    if (!config.expiration)
       return;
 
     Rtc::Timestamp now = snapper->rtc.current_time ();
     Genode::uint64_t expiry
-        = timestamp_to_seconds (now) - snapper_config.expiration;
+        = timestamp_to_seconds (now) - config.expiration;
 
     snapper_root.for_each_entry (
         [this, expiry] (Genode::Directory::Entry &entry) {
@@ -886,7 +886,7 @@ namespace SnapperNS
                   if (purge (entry.name ()) != Ok)
                     throw -1;
 
-                  if (snapper_config.integrity)
+                  if (config.integrity)
                     Genode::log ("purged expired generation: \"",
                                  entry.name (), "\"");
                 }
@@ -1046,7 +1046,7 @@ namespace SnapperNS
           }
       }
 
-    if (snapper_config.verbose)
+    if (config.verbose)
       Genode::log ("no unfinished generation remain.");
 
     return Ok;
@@ -1134,7 +1134,7 @@ namespace SnapperNS
 
         if (!__valid_archive (archive_path))
           {
-            if (snapper_config.integrity)
+            if (config.integrity)
               {
                 throw CrashStates::INVALID_ARCHIVE_FILE;
               }
@@ -1179,7 +1179,7 @@ namespace SnapperNS
       {
         Genode::error ("failed to open archive file of generation: ", latest);
 
-        if (snapper_config.integrity)
+        if (config.integrity)
           {
             throw CrashStates::INVALID_ARCHIVE_FILE;
           }
@@ -1228,7 +1228,7 @@ namespace SnapperNS
                 }
             },
             [this] (Snapper::Archive::Backlink::Error) {
-              if (snapper_config.integrity)
+              if (config.integrity)
                 {
                   throw CrashStates::INVALID_SNAPSHOT_FILE;
                 }
@@ -1301,7 +1301,7 @@ namespace SnapperNS
         throw CrashStates::PURGE_FAILED;
 
       default:
-        if (snapper_config.verbose)
+        if (config.verbose)
           Genode::log ("deleted: \"", location, "\"");
         break;
       }
