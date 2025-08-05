@@ -1,4 +1,4 @@
-genodelabs/api/base
-genodelabs/api/os
-genodelabs/api/vfs
-genodelabs/api/rtc_session
+base
+os
+vfs
+rtc_session
