@@ -1,4 +1,8 @@
-content: src LICENSE
+content: include src LICENSE
+
+include:
+	mkdir -p $@
+	cp -r $(REP_DIR)/$@/* $@/
 
 src:
 	mkdir -p $@
