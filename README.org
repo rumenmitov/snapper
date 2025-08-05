@@ -88,13 +88,13 @@ NOTE: On subsequent runs, if you want to change ~TESTS~, you have to ~rm -rf /ge
 #+end_quote
 
 ** Integration Into Another Project
-The Snapper library is available for moth run scripts and Goa projects.
+The Snapper library is available for moth run scripts and Goa projects. First run:
 
-For run scripts just add =lib/snap= to the build artifacts.
+: ./<genode-dir>/depot/tool/extract rumen/src/snap
 
-For Goa, add =rumen/api/snap/2025-08-05= to the _archives_ file and run:
+- For run scripts just add =lib/snap= to the build artifacts.
+- For Goa, add =rumen/api/snap/2025-08-05= to the _archives_ file and run:
 
-: ./<genode-dir>/depot/tool/extract rumen/api/snap
 
 * Configuration of Snapper
 :properties:
