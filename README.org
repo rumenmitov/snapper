@@ -87,6 +87,15 @@ To (optionally) specify how many test objects to create (see [[#with-goa][Runnin
 NOTE: On subsequent runs, if you want to change ~TESTS~, you have to ~rm -rf /genode/build/x86_64/test/snapper/~ before running.
 #+end_quote
 
+** Integration Into Another Project
+The Snapper library is available for moth run scripts and Goa projects.
+
+For run scripts just add =lib/snap= to the build artifacts.
+
+For Goa, add =rumen/api/snap/2025-08-05= to the _archives_ file and run:
+
+: ./<genode-dir>/depot/tool/extract rumen/api/snap
+
 * Configuration of Snapper
 :properties:
 :custom_id: configuration
