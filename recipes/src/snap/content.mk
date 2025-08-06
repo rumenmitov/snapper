@@ -1,4 +1,4 @@
-content: include src LICENSE
+content: include src lib LICENSE
 
 include:
 	mkdir -p $@
@@ -7,6 +7,10 @@ include:
 src:
 	mkdir -p $@
 	cp -r $(REP_DIR)/$@/* $@/
+
+lib:
+	mkdir -p $@/mk
+	cp -r $(REP_DIR)/$@/mk/* $@/mk/
 
 LICENSE:
 	cp $(REP_DIR)/$@ $@
