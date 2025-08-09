@@ -49,26 +49,26 @@ summary (void)
   Genode::log (ignored_tests, " tests were ignored.");
 }
 
-using namespace SnapperNS;
+using namespace Snapper;
 
 /* Tests */
 void
-test_snapshot_creation (void)
+test_snapshot_creation (Main &snapper)
 {
-  if (snapper->init_snapshot () != Snapper::Ok)
+  if (snapper.init_snapshot () != Snapper::Ok)
     {
       TEST (false);
     }
 
   for (int i = 1; i <= TESTS; i++)
     {
-      if (snapper->take_snapshot (&i, sizeof (decltype (i)), i) != Snapper::Ok)
+      if (snapper.take_snapshot (&i, sizeof (decltype (i)), i) != Snapper::Ok)
         {
           TEST (false);
         }
     }
 
-  if (snapper->commit_snapshot () != Snapper::Ok)
+  if (snapper.commit_snapshot () != Snapper::Ok)
     {
       TEST (false);
     }
@@ -77,31 +77,31 @@ test_snapshot_creation (void)
 }
 
 void
-test_successful_recovery (void)
+test_successful_recovery (Main &snapper)
 {
   int value = 0;
   Genode::size_t size = sizeof (decltype (value));
 
-  if (snapper->open_generation () != Snapper::Ok)
+  if (snapper.open_generation () != Snapper::Ok)
     TEST (false);
 
   for (int i = 1; i <= TESTS; i++)
     {
-      snapper->restore (&value, size, i);
+      snapper.restore (&value, size, i);
       if (value != i)
         TEST (false);
     }
 
-  if (snapper->close_generation () != Snapper::Ok)
+  if (snapper.close_generation () != Snapper::Ok)
     TEST (false);
 
   TEST (true);
 }
 
 void
-test_snapshot_purge (void)
+test_snapshot_purge (Main &snapper)
 {
-  bool ok = snapper->purge () == Snapper::Ok;
+  bool ok = snapper.purge () == Snapper::Ok;
 
   TEST (ok);
 }
@@ -111,13 +111,11 @@ Component::construct (Genode::Env &env)
 {
   Genode::log ("-*- SNAPPER TEST SUITE -*-\n");
 
-  snapper = SnapperNS::Snapper::new_snapper (env);
-  if (!snapper)
-    Genode::error ("could not initialize snapper object!");
+  Snapper::Main snapper(env);
 
-  test_snapshot_creation ();
-  test_successful_recovery ();
-  test_snapshot_purge ();
+  test_snapshot_creation (snapper);
+  test_successful_recovery (snapper);
+  test_snapshot_purge (snapper);
 
   summary ();
   Genode::log ("\n-*- SNAPPER TESTS DONE -*-");

@@ -6,180 +6,34 @@
 #include "snapper.h"
 #include "utils.h"
 
-[[maybe_unused]] static Genode::String<
-    Vfs::Directory_service::Dirent::Name::MAX_LEN>
-timestamp_to_str (const Rtc::Timestamp &ts)
+namespace Snapper
 {
-  Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> str (
-      ts.year, "-", ts.month, "-", ts.day, " ", ts.hour, ":", ts.minute, ":",
-      ts.second);
-
-  return str;
-}
-
-// TODO better error handling
-[[maybe_unused]] static Rtc::Timestamp
-str_to_timestamp (char *str)
-{
-  if (Genode::strlen (str) > Vfs::Directory_service::Dirent::Name::MAX_LEN)
-    {
-      throw -1;
-    }
-
-  char *ptr = str;
-  const unsigned base = 10;
-
-  Rtc::Timestamp ts;
-
-  // year
-  Genode::size_t size
-      = Genode::ascii_to_unsigned<decltype (ts.year)> (ptr, ts.year, base);
-
-  if (size < 4)
-    throw -1;
-
-  ptr += size + 1;
-
-  // month
-  size = Genode::ascii_to_unsigned<decltype (ts.month)> (ptr, ts.month, base);
-  if (size != 1 && size != 2)
-    throw -1;
-
-  ptr += size + 1;
-
-  // day
-  size = Genode::ascii_to_unsigned<decltype (ts.day)> (ptr, ts.day, base);
-  if (size != 1 && size != 2)
-    throw -1;
-
-  ptr += size + 1;
-
-  // hour
-  size = Genode::ascii_to_unsigned<decltype (ts.hour)> (ptr, ts.hour, base);
-  if (size != 1 && size != 2)
-    throw -1;
-
-  ptr += size + 1;
-
-  // minute
-  size
-      = Genode::ascii_to_unsigned<decltype (ts.minute)> (ptr, ts.minute, base);
-  if (size != 1 && size != 2)
-    throw -1;
-
-  ptr += size + 1;
-
-  // second
-  size
-      = Genode::ascii_to_unsigned<decltype (ts.second)> (ptr, ts.second, base);
-  if (size != 1 && size != 2)
-    throw -1;
-
-  return ts;
-}
-
-[[maybe_unused]] static bool
-leap_year (unsigned year)
-{
-  return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
-}
-
-[[maybe_unused]] static unsigned
-days_in_month (unsigned month, unsigned year)
-{
-  static const unsigned days[]
-      = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
-
-  if (month == 2 && leap_year (year))
-    return 29;
-
-  return days[month - 1];
-}
-
-[[maybe_unused]] Genode::uint64_t
-timestamp_to_seconds (const Rtc::Timestamp &ts)
-{
-  Genode::uint64_t seconds = 0;
-
-  // add seconds for complete years since epoch (1970)
-  for (unsigned y = 1970; y < ts.year; y++)
-    {
-      seconds += leap_year (y) ? 366ULL * 24 * 60 * 60 : 365ULL * 24 * 60 * 60;
-    }
-
-  // add seconds for complete months in current year
-  for (unsigned m = 1; m < ts.month; m++)
-    {
-      seconds += days_in_month (m, ts.year) * 24ULL * 60 * 60;
-    }
-
-  // Add remaining days, hours, minutes and seconds
-  seconds += (ts.day - 1) * 24ULL * 60 * 60;
-  seconds += ts.hour * 60ULL * 60;
-  seconds += ts.minute * 60ULL;
-  seconds += ts.second;
-
-  return seconds;
-}
-
-[[maybe_unused]] void
-remove_basename (char *path)
-{
-  char *last_slash = path;
-  for (char *ptr = path; *ptr != 0; ptr++)
-    {
-      if (*ptr == '/' && *(ptr + 1) != 0)
-        last_slash = ptr;
-    }
-
-  *last_slash = 0;
-}
-
-namespace SnapperNS
-{
-  /*
-   * STATIC VARIABLES
-   */
-  Snapper *snapper = nullptr;
-  Snapper *Snapper::instance = nullptr;
-
-  const Genode::uint8_t Snapper::Version = 2;
-
   /*
    * CONSTRUCTORS
    */
 
-  /* TODO
-   * snapper_root should be initialized based off of a confurable
-   * path. That will also then affect the initialization of
-   * snapshot_dir_path.
-   */
-  Snapper::Snapper (Genode::Env &env)
-      : config (), rom (env, "config"),
-        heap (env.ram (), env.rm ()),
+  Main::Main (Genode::Env &env)
+      : rom (env, "config"), heap (env.ram (), env.rm ()),
         snapper_root (env, heap, rom.xml ().sub_node ("vfs")), rtc (env),
-        generation (static_cast<Vfs::Simple_env &> (snapper_root)),
+        config (), generation (static_cast<Vfs::Simple_env &> (snapper_root)),
         snapshot (static_cast<Vfs::Simple_env &> (snapper_root)),
-        snapshot_dir_path ("/"), archiver ()
+        snapshot_dir_path ("/"), archiver (*this)
   {
     config.verbose
         = rom.xml ().attribute_value<decltype (Snapper::Config::verbose)> (
             "verbose", Snapper::Config::_verbose);
 
     config.redundancy
-        = rom.xml ()
-              .attribute_value<decltype (Snapper::Config::redundancy)> (
-                  "redundancy", Snapper::Config::_redundancy);
+        = rom.xml ().attribute_value<decltype (Snapper::Config::redundancy)> (
+            "redundancy", Snapper::Config::_redundancy);
 
     config.integrity
-        = rom.xml ()
-              .attribute_value<decltype (Snapper::Config::integrity)> (
-                  "integrity", Snapper::Config::_integrity);
+        = rom.xml ().attribute_value<decltype (Snapper::Config::integrity)> (
+            "integrity", Snapper::Config::_integrity);
 
     config.threshold
-        = rom.xml ()
-              .attribute_value<decltype (Snapper::Config::threshold)> (
-                  "threshold", Snapper::Config::_threshold);
+        = rom.xml ().attribute_value<decltype (Snapper::Config::threshold)> (
+            "threshold", Snapper::Config::_threshold);
 
     config.max_snapshots
         = rom.xml ()
@@ -192,45 +46,25 @@ namespace SnapperNS
                   "min_snapshots", Snapper::Config::_min_snapshots);
 
     config.expiration
-        = rom.xml ()
-              .attribute_value<decltype (Snapper::Config::expiration)> (
-                  "expiration", Snapper::Config::_expiration);
+        = rom.xml ().attribute_value<decltype (Snapper::Config::expiration)> (
+            "expiration", Snapper::Config::_expiration);
   }
 
-  Snapper::~Snapper ()
+  Main::~Main ()
   {
     generation.destruct ();
     snapshot.destruct ();
     archiver.destruct ();
 
-    instance = nullptr;
-
     if (config.verbose)
       Genode::log ("snapper object destroyed.");
-  }
-
-  Snapper *
-  Snapper::new_snapper (Genode::Env &env)
-  {
-    if (Snapper::instance)
-      return Snapper::instance;
-
-    static Snapper local_snapper (env);
-    env.exec_static_constructors ();
-
-    Snapper::instance = &local_snapper;
-
-    if (Snapper::instance->config.verbose)
-      Genode::log ("new snapper object created.");
-
-    return Snapper::instance;
   }
 
   /*
    * CREATING SNAPSHOT
    */
   Snapper::Result
-  Snapper::init_snapshot ()
+  Main::init_snapshot ()
   {
     if (state != Dormant)
       return InvalidState;
@@ -257,8 +91,8 @@ namespace SnapperNS
   }
 
   Snapper::Result
-  Snapper::take_snapshot (void const *const payload, Genode::uint64_t size,
-                          Archive::ArchiveKey identifier)
+  Main::take_snapshot (void const *const payload, Genode::uint64_t size,
+                       Archive::ArchiveKey identifier)
   {
     if (state != Creation)
       return InvalidState;
@@ -298,8 +132,8 @@ namespace SnapperNS
               {
                 while (!entry.queue.empty ())
                   {
-                    entry.queue.dequeue ([] (Archive::Backlink &backlink) {
-                      Genode::destroy (snapper->heap, backlink._self);
+                    entry.queue.dequeue ([this] (Archive::Backlink &backlink) {
+                      Genode::destroy (heap, backlink._self);
                     });
                   }
 
@@ -327,8 +161,8 @@ namespace SnapperNS
               {
                 while (!entry.queue.empty ())
                   {
-                    entry.queue.dequeue ([] (Archive::Backlink &backlink) {
-                      Genode::destroy (snapper->heap, backlink._self);
+                    entry.queue.dequeue ([this] (Archive::Backlink &backlink) {
+                      Genode::destroy (heap, backlink._self);
                     });
                   }
 
@@ -358,14 +192,14 @@ namespace SnapperNS
                         }
                     }
                 },
-                [&entry,
+                [this, &entry,
                  &new_file_needed] (Snapper::Archive::Backlink::Error) {
                   new_file_needed = true;
 
                   while (!entry.queue.empty ())
                     {
-                      entry.queue.dequeue ([] (Archive::Backlink &backlink) {
-                        Genode::destroy (snapper->heap, backlink._self);
+                      entry.queue.dequeue ([this] (Archive::Backlink &backlink) {
+                        Genode::destroy (heap, backlink._self);
                       });
                     }
                 });
@@ -401,11 +235,13 @@ namespace SnapperNS
 
     try
       {
+        VERSION ver = Version;
+        
         Genode::New_file file (*snapshot, filepath_base);
 
         // writing Snapper version
         Genode::New_file::Append_result res
-            = file.append ((char *)&Version, sizeof (Snapper::VERSION));
+            = file.append ((char *)&ver, sizeof (Snapper::VERSION));
 
         if (res != Genode::New_file::Append_result::OK)
           {
@@ -463,7 +299,7 @@ namespace SnapperNS
   }
 
   Snapper::Result
-  Snapper::commit_snapshot (void)
+  Main::commit_snapshot (void)
   {
     if (state != Creation)
       return InvalidState;
@@ -520,10 +356,11 @@ namespace SnapperNS
               });
             });
 
+        Snapper::VERSION ver = Version;
         Snapper::CRC crc = crc32 (_archive_buf, size * total_snapshot_objects);
 
         Genode::New_file::Append_result res
-            = archive.append ((char *)&Version, sizeof (Snapper::VERSION));
+            = archive.append ((char *)&ver, sizeof (Snapper::VERSION));
 
         if (res != Genode::New_file::Append_result::OK)
           {
@@ -612,7 +449,7 @@ namespace SnapperNS
    */
 
   Snapper::Result
-  Snapper::open_generation (
+  Main::open_generation (
       const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
           &generation)
   {
@@ -635,8 +472,8 @@ namespace SnapperNS
   }
 
   Snapper::Result
-  Snapper::restore (void *dst, Genode::size_t size,
-                    Archive::ArchiveKey identifier)
+  Main::restore (void *dst, Genode::size_t size,
+                 Archive::ArchiveKey identifier)
   {
     if (state != Restoration)
       return InvalidState;
@@ -712,7 +549,7 @@ namespace SnapperNS
   }
 
   Snapper::Result
-  Snapper::close_generation (void)
+  Main::close_generation (void)
   {
     if (state != Restoration)
       return InvalidState;
@@ -731,7 +568,7 @@ namespace SnapperNS
   }
 
   Snapper::Result
-  Snapper::purge (
+  Main::purge (
       const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
           &generation)
   {
@@ -769,7 +606,7 @@ namespace SnapperNS
 
     if (_gen == "")
       {
-        if (snapper->config.verbose)
+        if (config.verbose)
           Genode::log ("no generation exists for purging");
 
         goto CLEAN_RET;
@@ -788,7 +625,7 @@ namespace SnapperNS
                 bool remove = false;
 
                 backlink.get_reference_count ().with_result (
-                    [&backlink, &remove] (Snapper::RC reference_count) {
+                    [&backlink, &remove, this] (Snapper::RC reference_count) {
                       reference_count--;
 
                       // if the reference count is 0 or less, remove the
@@ -798,7 +635,7 @@ namespace SnapperNS
                           if (backlink.set_reference_count (reference_count)
                                   .failed ())
                             {
-                              if (snapper->config.integrity)
+                              if (config.integrity)
                                 throw CrashStates::REF_COUNT_FAILED;
 
                               remove = true;
@@ -807,8 +644,8 @@ namespace SnapperNS
                       else
                         remove = true;
                     },
-                    [&remove] (Archive::Backlink::Error) {
-                      if (snapper->config.integrity)
+                    [&remove, this] (Archive::Backlink::Error) {
+                      if (config.integrity)
                         throw CrashStates::REF_COUNT_FAILED;
 
                       remove = true;
@@ -842,12 +679,11 @@ namespace SnapperNS
   }
 
   void
-  Snapper::purge_expired (void)
+  Main::purge_expired (void)
   {
     Genode::uint64_t num_gen = __num_gen ();
 
-    while (config.max_snapshots
-           && num_gen > config.max_snapshots
+    while (config.max_snapshots && num_gen > config.max_snapshots
            && num_gen > config.min_snapshots)
       {
         if (config.verbose)
@@ -871,9 +707,8 @@ namespace SnapperNS
     if (!config.expiration)
       return;
 
-    Rtc::Timestamp now = snapper->rtc.current_time ();
-    Genode::uint64_t expiry
-        = timestamp_to_seconds (now) - config.expiration;
+    Rtc::Timestamp now = rtc.current_time ();
+    Genode::uint64_t expiry = timestamp_to_seconds (now) - config.expiration;
 
     snapper_root.for_each_entry (
         [this, expiry] (Genode::Directory::Entry &entry) {
@@ -905,7 +740,7 @@ namespace SnapperNS
    */
 
   bool
-  Snapper::__valid_archive (const Genode::Path<Vfs::MAX_PATH_LEN> &archive)
+  Main::__valid_archive (const Genode::Path<Vfs::MAX_PATH_LEN> &archive)
   {
     if (!snapper_root.file_exists (archive))
       {
@@ -938,10 +773,10 @@ namespace SnapperNS
         Snapper::VERSION version
             = *(reinterpret_cast<Snapper::VERSION *> (version_buf.start));
 
-        if (version != snapper->Version)
+        if (version != Version)
           {
             Genode::error ("invalid archive, version mismatch: ", version,
-                           ", should be: ", snapper->Version);
+                           ", should be: ", (VERSION) Version);
             return false;
           }
 
@@ -961,7 +796,7 @@ namespace SnapperNS
 
         // get data size
         Vfs::Dir_file_system::Stat stats;
-        if (snapper->snapper_root.root_dir ().stat (archive.string (), stats)
+        if (snapper_root.root_dir ().stat (archive.string (), stats)
             != Vfs::Dir_file_system::STAT_OK)
           {
             Genode::error ("could not open the stats for: ", archive);
@@ -1019,7 +854,7 @@ namespace SnapperNS
   }
 
   Snapper::Result
-  Snapper::__remove_unfinished_gen (void)
+  Main::__remove_unfinished_gen (void)
   {
     Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> latest = "";
 
@@ -1053,7 +888,7 @@ namespace SnapperNS
   }
 
   Snapper::Result
-  Snapper::__init_gen (void)
+  Main::__init_gen (void)
   {
     Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> timestamp
         = timestamp_to_str (rtc.current_time ());
@@ -1088,7 +923,7 @@ namespace SnapperNS
   }
 
   void
-  Snapper::__reset_gen (void)
+  Main::__reset_gen (void)
   {
     snapshot_dir_path = "/";
     snapshot_file_count = 0;
@@ -1100,11 +935,11 @@ namespace SnapperNS
   }
 
   Snapper::Result
-  Snapper::__load_gen (
+  Main::__load_gen (
       const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
           &generation)
   {
-    archiver.construct ();
+    archiver.construct (*this);
 
     Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> latest
         = generation;
@@ -1191,7 +1026,7 @@ namespace SnapperNS
   }
 
   void
-  Snapper::__abort_snapshot (void)
+  Main::__abort_snapshot (void)
   {
     if (snapshot.constructed ())
       {
@@ -1213,7 +1048,7 @@ namespace SnapperNS
   }
 
   void
-  Snapper::__update_references (void)
+  Main::__update_references (void)
   {
     bool success = false;
 
@@ -1244,7 +1079,7 @@ namespace SnapperNS
   }
 
   Genode::uint64_t
-  Snapper::__num_gen (void)
+  Main::__num_gen (void)
   {
     Genode::uint64_t num_generations = 0;
 
@@ -1258,7 +1093,7 @@ namespace SnapperNS
   }
 
   Genode::uint64_t
-  Snapper::__num_dirent (const Genode::String<Vfs::MAX_PATH_LEN> &dir)
+  Main::__num_dirent (const Genode::String<Vfs::MAX_PATH_LEN> &dir)
   {
     Genode::uint64_t count = 0;
 
@@ -1269,7 +1104,7 @@ namespace SnapperNS
   }
 
   void
-  Snapper::__delete_upwards (const char *location)
+  Main::__delete_upwards (const char *location)
   {
     if (Genode::strlen (location) > Vfs::MAX_PATH_LEN)
       {
@@ -1316,4 +1151,4 @@ namespace SnapperNS
       }
   }
 
-} // namespace SnapperNS
+} // namespace Snapper

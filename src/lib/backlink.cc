@@ -5,7 +5,7 @@
 
 #include "snapper.h"
 
-namespace SnapperNS
+namespace Snapper
 {
   Genode::Attempt<Snapper::VERSION, Snapper::Archive::Backlink::Error>
   Snapper::Archive::Backlink::get_version (void)
@@ -14,7 +14,7 @@ namespace SnapperNS
 
     try
       {
-        Genode::Readonly_file reader (snapper->snapper_root, value);
+        Genode::Readonly_file reader (archive.snapper.snapper_root, value);
         Genode::Readonly_file::At pos{ 0 };
 
         char _version_buf[sizeof (Snapper::VERSION)];
@@ -49,7 +49,7 @@ namespace SnapperNS
 
     try
       {
-        Genode::Readonly_file reader (snapper->snapper_root, value);
+        Genode::Readonly_file reader (archive.snapper.snapper_root, value);
         Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION) };
 
         char _crc_buf[sizeof (Snapper::CRC)];
@@ -83,7 +83,7 @@ namespace SnapperNS
 
     try
       {
-        Genode::Readonly_file reader (snapper->snapper_root, value);
+        Genode::Readonly_file reader (archive.snapper.snapper_root, value);
         Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION)
                                        + sizeof (Snapper::CRC) };
 
@@ -118,7 +118,7 @@ namespace SnapperNS
 
     try
       {
-        fsize = snapper->snapper_root.file_size (value);
+        fsize = archive.snapper.snapper_root.file_size (value);
       }
     catch (Genode::Directory::Nonexistent_file)
       {
@@ -160,7 +160,7 @@ namespace SnapperNS
 
     try
       {
-        Genode::Readonly_file reader (snapper->snapper_root, value);
+        Genode::Readonly_file reader (archive.snapper.snapper_root, value);
         Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION)
                                        + sizeof (Snapper::CRC)
                                        + sizeof (Snapper::RC) };
@@ -231,7 +231,7 @@ namespace SnapperNS
         return res;
       }
 
-    char *_data_buf = (char *)snapper->heap.alloc (data_size);
+    char *_data_buf = (char *)archive.snapper.heap.alloc (data_size);
     Genode::Byte_range_ptr data (_data_buf, data_size);
 
     Snapper::Archive::Backlink::Error err = get_data (data);
@@ -243,11 +243,11 @@ namespace SnapperNS
         goto CLEAN_RET;
       }
 
-    snapper->snapper_root.unlink (value);
+    archive.snapper.snapper_root.unlink (value);
 
     try
       {
-        Genode::New_file writer (snapper->snapper_root, value);
+        Genode::New_file writer (archive.snapper.snapper_root, value);
 
         // version
         Genode::New_file::Append_result write_res
@@ -309,7 +309,7 @@ namespace SnapperNS
 
   CLEAN_RET:
     if (data.start)
-      snapper->heap.free (data.start, data.num_bytes);
+      archive.snapper.heap.free (data.start, data.num_bytes);
 
     if (res == WriteErr)
       {

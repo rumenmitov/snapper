@@ -1,4 +1,4 @@
-SRC_CC   = snapper.cc backlink.cc archive.cc
+SRC_CC   = snapper.cc backlink.cc archive.cc utils.cc
 LIBS    += base vfs
 
 INC_DIR += $(REP_DIR)/include

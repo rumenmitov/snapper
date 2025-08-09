@@ -5,7 +5,7 @@
 
 #include "snapper.h"
 
-namespace SnapperNS
+namespace Snapper
 {
   Snapper::Archive::~Archive ()
   {
@@ -27,7 +27,7 @@ namespace SnapperNS
                             const Genode::String<Vfs::MAX_PATH_LEN> &val)
   {
     Snapper::Archive::Backlink *backlink
-        = new (snapper->heap) Archive::Backlink (val);
+      = new (snapper.heap) Archive::Backlink (*this, val);
 
     backlink->_self = backlink;
 
@@ -38,14 +38,14 @@ namespace SnapperNS
         },
         [this, key, backlink] () {
           Archive::ArchiveEntry *entry
-              = new (snapper->heap) Archive::ArchiveEntry (key, archive);
+              = new (snapper.heap) Archive::ArchiveEntry (key, archive);
 
           entry->_self = entry;
 
           entry->queue.enqueue (*backlink);
         });
 
-    if (snapper->config.verbose)
+    if (snapper.config.verbose)
       {
         Genode::log ("archive entry inserted: ", key, " -> \"",
                      backlink->value, "\"");
@@ -57,21 +57,21 @@ namespace SnapperNS
   {
     archive.with_element (
         key,
-        [] (Archive::ArchiveEntry &entry) {
-          entry.queue.for_each ([] (Archive::Backlink &backlink) {
-            Genode::destroy (snapper->heap, backlink._self);
+        [this] (Archive::ArchiveEntry &entry) {
+          entry.queue.for_each ([this] (Archive::Backlink &backlink) {
+            Genode::destroy (snapper.heap, backlink._self);
           });
 
-          Genode::destroy (snapper->heap, entry._self);
+          Genode::destroy (snapper.heap, entry._self);
         },
-        [key] () {
-          if (snapper->config.verbose)
+        [key, this] () {
+          if (snapper.config.verbose)
             {
               Genode::warning ("no such key exists in archive: ", key);
             }
         });
 
-    if (snapper->config.verbose)
+    if (snapper.config.verbose)
       {
         Genode::log ("archive entry removed: ", key);
       }

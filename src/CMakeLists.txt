@@ -21,7 +21,8 @@ add_executable(snappertests test/snapper/main.cc)
 add_library(snap
   lib/snapper.cc
   lib/archive.cc
-  lib/backlink.cc)
+  lib/backlink.cc
+  lib/utils.cc)
 
 # Linking
 target_include_directories(snap PUBLIC ../include)
