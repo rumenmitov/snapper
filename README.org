@@ -55,6 +55,12 @@ If you are using the container, the following should be run inside the container
 :custom_id: with-goa
 :end:
 
+#+begin_quote
+*NOTE* The runtime file _pkg/snapper/runtime_ is made to persist changes made to the block storage during the execution of the program. _pkg/snapper_ itself does not make any changes; the runtime file exists for potential future debugging purposes.
+
+For a non-persistent runtime, see _pkg/snappertests/runtime_.
+#+end_quote
+
 #+begin_src shell
   cd /genode/repos/snapper
   goa run --pkg snapper
