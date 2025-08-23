@@ -65,13 +65,14 @@ namespace Snapper
   /**
    * @brief Stores the configuration for the Snapper object.
    * @field verbose 					Whether to print
-   * verbose output.
+   *                          verbose output.
    * @field redundancy				After reaching this reference
-   * count, a redundant file copy will be created for subsequent snapshot.
+   *                          count, a redundant file copy will be
+   *                          created for subsequent snapshot.
    * @field integrity 				If true, crash the system on
-   * failed integrity checks, otherwise log a warning.
+   *                          failed integrity checks, otherwise log a warning.
    * @field threshold 				The maximum number of files in
-   * a snapshot sub-directory.
+   *                          a snapshot sub-directory.
    * @field max_snapshots	  	The maximum number of complete
    *                          snapshots inside <snapper-root>.
    * @field min_snapshots	  	The minimum number of generations that

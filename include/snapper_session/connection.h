@@ -1,3 +1,9 @@
+/**
+ * @brief Connection to Snapper service.
+ * @author Rumen Mitov
+ * @date 2025-08-23
+ */
+
 #ifndef __SNAPPER_SESSION_CONNECTION_H
 #define __SNAPPER_SESSION_CONNECTION_H
 

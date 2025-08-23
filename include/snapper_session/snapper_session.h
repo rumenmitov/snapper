@@ -1,3 +1,9 @@
+/**
+ * @brief Snapper session and root interfaces.
+ * @author Rumen Mitov
+ * @date 2025-08-23
+ */
+
 #ifndef __SNAPPER_SESSION_H
 #define __SNAPPER_SESSION_H
 
@@ -28,22 +34,33 @@ struct Snapper::Session : Genode::Session
   // TODO Implement this in a better way.
   static const Genode::size_t BUFSIZE = 1024 * 1024;
 
+  /*
+   * A terminal session consumes a dataspace capability for the server's
+   * session-object allocation, its session capability, and a dataspace
+   * capability for the communication buffer.
+   */
   enum
   {
-    CAP_QUOTA = 4
+    CAP_QUOTA = 3
   };
 
+  /**
+   * @brief Internal method for returning the dataspace used for the
+   *        communication buffer.
+   */
   virtual Genode::Dataspace_capability _dataspace (void) = 0;
 
+  /**
+   * @brief Internal wrapper that uses the communication buffer.
+   */
   virtual Result _take_snapshot (Genode::size_t, Archive::ArchiveKey) = 0;
 
+  /**
+   * @brief Internal wrapper that uses the communication buffer.
+   */
   virtual Result _restore (Genode::size_t, Archive::ArchiveKey) = 0;
 
   virtual Result init_snapshot (void) = 0;
-
-  virtual Result take_snapshot (void const *const, Genode::size_t,
-                                Archive::ArchiveKey)
-      = 0;
 
   virtual Result commit_snapshot (void) = 0;
 
@@ -51,8 +68,6 @@ struct Snapper::Session : Genode::Session
       const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
           & = "")
       = 0;
-
-  virtual Result restore (void *, Genode::size_t, Archive::ArchiveKey) = 0;
 
   virtual Result close_generation (void) = 0;
 
@@ -94,7 +109,14 @@ struct Snapper::Session : Genode::Session
 
 struct Snapper::Session_component : Genode::Rpc_object<Session>
 {
+  /**
+   * @brief Session_component is a wrapper for the Snapper::Main object.
+   */
   Snapper::Main &snapper;
+
+  /**
+   * @brief Dataspace for communication with client.
+   */
   Genode::Attached_ram_dataspace ds;
 
   Session_component () = delete;
@@ -128,15 +150,6 @@ struct Snapper::Session_component : Genode::Rpc_object<Session>
   }
 
   Result
-  take_snapshot (void const *const payload, Genode::size_t size,
-                 Archive::ArchiveKey identifier) override
-  {
-    // TODO Return a special value.
-    (void)payload, (void)size, (void)identifier;
-    return Ok;
-  }
-
-  Result
   commit_snapshot (void) override
   {
     return snapper.commit_snapshot ();
@@ -148,15 +161,6 @@ struct Snapper::Session_component : Genode::Rpc_object<Session>
           &generation) override
   {
     return snapper.open_generation (generation);
-  }
-
-  Result
-  restore (void *dest, Genode::size_t size,
-           Archive::ArchiveKey identifier) override
-  {
-    // TODO Return a special value.
-    (void)dest, (void)size, (void)identifier;
-    return Ok;
   }
 
   Result
