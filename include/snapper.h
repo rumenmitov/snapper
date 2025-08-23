@@ -6,6 +6,7 @@
 #include <base/heap.h>
 #include <os/path.h>
 #include <os/vfs.h>
+#include <root/component.h>
 #include <rtc_session/connection.h>
 #include <util/attempt.h>
 #include <util/dictionary.h>

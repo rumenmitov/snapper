@@ -2,7 +2,7 @@
 #include <util/construct_at.h>
 #include <util/list.h>
 
-#include "snapper.h"
+#include "snapper_session/connection.h"
 #include "utils.h"
 
 /* Test Stats */
@@ -49,11 +49,9 @@ summary (void)
   Genode::log (ignored_tests, " tests were ignored.");
 }
 
-using namespace Snapper;
-
 /* Tests */
 void
-test_snapshot_creation (Main &snapper)
+test_snapshot_creation (Snapper::Connection &snapper)
 {
   if (snapper.init_snapshot () != Snapper::Ok)
     {
@@ -77,7 +75,7 @@ test_snapshot_creation (Main &snapper)
 }
 
 void
-test_successful_recovery (Main &snapper)
+test_successful_recovery (Snapper::Connection &snapper)
 {
   int value = 0;
   Genode::size_t size = sizeof (decltype (value));
@@ -87,7 +85,7 @@ test_successful_recovery (Main &snapper)
 
   for (int i = 1; i <= TESTS; i++)
     {
-      snapper.restore (&value, size, i);
+      snapper.restore ((char *)&value, size, i);
       if (value != i)
         TEST (false);
     }
@@ -99,19 +97,20 @@ test_successful_recovery (Main &snapper)
 }
 
 void
-test_snapshot_purge (Main &snapper)
+test_snapshot_purge (Snapper::Connection &snapper)
 {
   bool ok = snapper.purge () == Snapper::Ok;
 
   TEST (ok);
 }
 
+
 void
 Component::construct (Genode::Env &env)
 {
-  Genode::log ("-*- SNAPPER TEST SUITE -*-\n");
+  Snapper::Connection snapper (env);
 
-  Snapper::Main snapper(env);
+  Genode::log ("-*- SNAPPER TEST SUITE -*-\n");
 
   test_snapshot_creation (snapper);
   test_successful_recovery (snapper);

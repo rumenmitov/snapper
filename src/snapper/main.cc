@@ -3,11 +3,8 @@
 
 #include "snapper.h"
 
-using namespace Snapper;
-
 void
 Component::construct (Genode::Env &env)
 {
-  Snapper::Main snapper(env);
-  env.parent().exit(0);
+  static Snapper::Main snapper(env);
 }

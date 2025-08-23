@@ -20,6 +20,7 @@ build {
     lib/vfs_import
     lib/vfs_lwext4
     driver/rtc
+    snapper
     test/snapper
 }
 
@@ -50,7 +51,8 @@ install_config $config
 
 build_boot_image [list {*}[build_artifacts] snapper_block.raw]
 
-run_genode_until {child "snappertests" exited with exit value 0.*\n} 1000
+#run_genode_until {child "snappertests" exited with exit value 0.*\n} 1000
+run_genode_until forever
 
 exec rm -f bin/snapper_block.raw
 

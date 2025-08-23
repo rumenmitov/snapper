@@ -3,6 +3,7 @@
 
   <content>
     <rom label="snappertests"/>
+    <rom label="snapper"/>
     <rom label="vfs"/>
     <rom label="vfs_block"/>
     <rom label="vfs.lib.so"/>
@@ -51,12 +52,16 @@
 				          reporting="no"
 				          external_cache_size="0M" report_cache="no"/>
  			  </vfs>
- 			  <policy label_prefix="snappertests" root="/" writeable="yes"/>
+ 			  <policy label_prefix="snapper" root="/" writeable="yes"/>
  		  </config>
  	  </start>
 
 
-    <start name="snappertests" ram="400M" caps="100">
+    <start name="snapper" ram="400M" caps="100">
+      <provides>
+        <service name="Snapper"/>
+      </provides>
+
       <config
           verbose="true"
           redundancy="2"
@@ -73,6 +78,8 @@
         </vfs>
       </config>
     </start>
+
+    <start name="snappertests"> </start>
   </config>
 
 </runtime>

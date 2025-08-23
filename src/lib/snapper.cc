@@ -5,6 +5,7 @@
 
 #include "snapper.h"
 #include "utils.h"
+#include "snapper_session/snapper_session.h"
 
 namespace Snapper
 {
@@ -48,6 +49,9 @@ namespace Snapper
     config.expiration
         = rom.xml ().attribute_value<decltype (Snapper::Config::expiration)> (
             "expiration", Snapper::Config::_expiration);
+
+    static Snapper::Root_component root (env, env.ep (), heap, *this);
+    env.parent().announce(env.ep().manage(root));
   }
 
   Main::~Main ()
@@ -198,9 +202,10 @@ namespace Snapper
 
                   while (!entry.queue.empty ())
                     {
-                      entry.queue.dequeue ([this] (Archive::Backlink &backlink) {
-                        Genode::destroy (heap, backlink._self);
-                      });
+                      entry.queue.dequeue (
+                          [this] (Archive::Backlink &backlink) {
+                            Genode::destroy (heap, backlink._self);
+                          });
                     }
                 });
           });
@@ -236,7 +241,7 @@ namespace Snapper
     try
       {
         VERSION ver = Version;
-        
+
         Genode::New_file file (*snapshot, filepath_base);
 
         // writing Snapper version
@@ -535,7 +540,7 @@ namespace Snapper
                 if (config.verbose)
                   Genode::warning (
                       "backlink has an invalid CRC: ", backlink.value,
-                      "! remove it to "
+                      "! Remove it to "
                       "not receive this warning again.");
 
                 res = IntegrityFailed;
@@ -776,7 +781,7 @@ namespace Snapper
         if (version != Version)
           {
             Genode::error ("invalid archive, version mismatch: ", version,
-                           ", should be: ", (VERSION) Version);
+                           ", should be: ", (VERSION)Version);
             return false;
           }
 
