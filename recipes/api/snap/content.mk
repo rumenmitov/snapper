@@ -2,7 +2,7 @@ content: include lib LICENSE
 
 include:
 	mkdir -p include
-	cp -r $(REP_DIR)/include/* $@/
+	cp -r $(REP_DIR)/include/* $@
 
 lib:
 	mkdir -p lib/mk
