@@ -28,7 +28,7 @@ Install the requirements. This pre-built container image comes with all the depe
 
 Add the following to /<genode>/build/x86_64/etc/build.conf/:
 
-: REPOSITORIES += $(GENODE_DIR)/repos/wundertuete
+: REPOSITORIES += $(GENODE_DIR)/repos/wundertuete # optional
 : REPOSITORIES += $(GENODE_DIR)/repos/snapper
 
 Optionally add the Lwext plugin:
@@ -94,7 +94,7 @@ NOTE: On subsequent runs, if you want to change ~TESTS~, you have to ~rm -rf /ge
 #+end_quote
 
 ** Integration Into Another Project
-The Snapper library is available for moth run scripts and Goa projects. First run:
+The Snapper library is available for most run scripts and Goa projects. First run:
 
 : ./<genode-dir>/depot/tool/extract rumen/src/snap
 
