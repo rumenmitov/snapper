@@ -394,8 +394,15 @@ Snapshot files that are relevant for more than one generation are not duplicated
 ** Partial Snapshot Recovery
 A generation with a valid archive, can be indexed to load a particular version of a page without having to restore the entire system to that generation.
 
-* User Stories
-The code in this section requires the ~SnapperNS~ namespace. Error handling has been omitted for brevity.
+* The Snapper Object
+:properties:
+:custom_id: snapper-object
+:end:
+The following section explains the usage of the main interfaces of the =Snapper= object. For using Snapper in an actual project, see
+
+#+begin_quote
+The code in this section requires the _snapper.h_ header. Error handling has been omitted for brevity.
+#+end_quote
 
 ** Initializing Snapper
 :properties:
@@ -404,7 +411,7 @@ The code in this section requires the ~SnapperNS~ namespace. Error handling has 
 This step is *required* to use any functionality of Snapper. You can initialize the global object with:
 
 #+begin_src c++
-  snapper = Snapper::new_snapper(env);
+  Snapper::Main snapper(env);
 #+end_src
 
 Here ~env~ is the ~Genode::Env&~ object created at the start of the Genode program. 
@@ -414,7 +421,7 @@ Make sure [[#init-snapper][Snapper is initialized]].
 
 **** Prepare the Snapper object for the snapshot procedure.
 #+begin_src c++
-  snapper->init_snapshot(); // OPTIONAL pass in specific generation
+  snapper.init_snapshot(); // OPTIONAL pass in specific generation
 #+end_src
 
 **** For each component's data that should be saved in the snapshot.
@@ -424,12 +431,12 @@ Make sure [[#init-snapper][Snapper is initialized]].
 
   Genode::uint64_t identifier = 4;
 
-  snapper->take_snapshot(&payload, size, identifier);
+  snapper.take_snapshot(&payload, size, identifier);
 #+end_src
 
 **** Finally save mark the snapshot as complete and cleanup.
 #+begin_src c++
-  snapper->commit_snapshot();
+  snapper.commit_snapshot();
 #+end_src
 
 ** Restoring A Snapshot
@@ -441,7 +448,7 @@ If no generation is provided to this method, the latest generation will be used 
 #+end_quote
 
 #+begin_src c++
-  snapper->open_generation(); // OPTIONAL pass in specific generation
+  snapper.open_generation(); // OPTIONAL pass in specific generation
 #+end_src
 
 **** Restore each desired component (idenitified by its identifier).
@@ -455,12 +462,12 @@ The caller is responsible for providing a buffer sufficient for the data to be r
 
   Genode::uint64_t identifier = 5;
 
-  snapper->restore(&data, size, identifier);
+  snapper.restore(&data, size, identifier);
 #+end_src
 
 **** Cleanup the restoration process.
 #+begin_src c++
-  snapper->close_generation();
+  snapper.close_generation();
 #+end_src
 
 ** Purging A Snapshot
@@ -472,8 +479,25 @@ Provide a RTC timestamp as a string to delete a specific generation. By default 
 #+end_quote
 
 #+begin_src c++
-  snapper->purge(); // OPTIONAL pass in specific generation
+  snapper.purge(); // OPTIONAL pass in specific generation
 #+end_src
+
+* Snapper User Stories (i.e Using Snapper in Projects)
+Snapper is designed with Genode's RTC server-client paradigm in mind. You can find a demo configuration of the server in _/run/snapper-common.inc_. For configuring the server, see [[#configuration][Configuration]].
+
+For the using the client (you can find an example in _/src/test/snapper/main.cc_), you need:
+
+#+begin_src c++
+  #include "snapper_session/connection.h"
+
+  void
+  Component::construct (Genode::Env &env)
+  {
+    Snapper::Connection snapper (env); // establishes connection to the server
+  }
+#+end_src
+
+You can then use =snapper= as explained in [[#snapper-object][The Snapper Object]].
 
 * Handling of Fail Points
 Here's how Snapper will handle the following failure points:
