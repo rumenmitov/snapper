@@ -40,7 +40,6 @@ append config {
 }
 
 append config [ exec $cat [genode_dir]/repos/snapper/run/snapper-common.inc ]
-append config [ exec $cat [genode_dir]/repos/snapper/run/snapper.inc ]
 
 append config {
     </config>

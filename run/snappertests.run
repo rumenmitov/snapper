@@ -41,9 +41,15 @@ append config {
 }
 
 append config [ exec $cat [genode_dir]/repos/snapper/run/snapper-common.inc ]
-append config [ exec $cat [genode_dir]/repos/snapper/run/snappertests.inc ]
 
 append config {
+        <start name="snappertests" caps="100">
+            <config>
+                <route>
+                    <service name="Snapper"><child name="snapper" /> </service>
+                </route>
+            </config>
+        </start>
     </config>
 }
 
