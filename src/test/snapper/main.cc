@@ -113,6 +113,7 @@ Component::construct (Genode::Env &env)
   Genode::log ("-*- SNAPPER TEST SUITE -*-\n");
 
   test_snapshot_creation (snapper);
+  test_snapshot_creation (snapper); // test linking with identical snapshot
   test_successful_recovery (snapper);
   test_snapshot_purge (snapper);
 

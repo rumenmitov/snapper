@@ -4,8 +4,8 @@
 #include <vfs/vfs_handle.h>
 
 #include "snapper.h"
-#include "utils.h"
 #include "snapper_session/snapper_session.h"
+#include "utils.h"
 
 namespace Snapper
 {
@@ -51,7 +51,7 @@ namespace Snapper
             "expiration", Snapper::Config::_expiration);
 
     static Snapper::Root_component root (env, env.ep (), heap, *this);
-    env.parent().announce(env.ep().manage(root));
+    env.parent ().announce (env.ep ().manage (root));
   }
 
   Main::~Main ()
@@ -212,13 +212,19 @@ namespace Snapper
         },
         [&new_file_needed] () { new_file_needed = true; });
 
+    /* INFO
+       Increment total_snapshot_objects before returning, because we
+       will need this number when allocating space for the archive CRC
+       in commit_snapshot().
+     */
+    total_snapshot_objects++;
+
     if (!new_file_needed)
       return Ok;
 
     // create a new snapshot file and write to it the payload metadata
     // and the payload data
 
-    total_snapshot_objects++;
     snapshot_file_count++;
 
     if (snapshot_file_count >= config.threshold)
@@ -641,7 +647,11 @@ namespace Snapper
                                   .failed ())
                             {
                               if (config.integrity)
-                                throw CrashStates::REF_COUNT_FAILED;
+                                {
+                                  Genode::error ("failed to set reference "
+                                                 "count of backlink");
+                                  throw CrashStates::REF_COUNT_FAILED;
+                                }
 
                               remove = true;
                             }
@@ -651,7 +661,11 @@ namespace Snapper
                     },
                     [&remove, this] (Archive::Backlink::Error) {
                       if (config.integrity)
-                        throw CrashStates::REF_COUNT_FAILED;
+                        {
+                          Genode::error ("failed to set reference "
+                                         "count of backlink");
+                          throw CrashStates::REF_COUNT_FAILED;
+                        }
 
                       remove = true;
                     });
@@ -976,6 +990,7 @@ namespace Snapper
           {
             if (config.integrity)
               {
+                Genode::error ("invalid archive file failed integrity check");
                 throw CrashStates::INVALID_ARCHIVE_FILE;
               }
 
@@ -1021,6 +1036,7 @@ namespace Snapper
 
         if (config.integrity)
           {
+            Genode::error ("invalid archive file failed integrity check");
             throw CrashStates::INVALID_ARCHIVE_FILE;
           }
 
@@ -1070,6 +1086,7 @@ namespace Snapper
             [this] (Snapper::Archive::Backlink::Error) {
               if (config.integrity)
                 {
+                  Genode::error ("invalid snapshot file");
                   throw CrashStates::INVALID_SNAPSHOT_FILE;
                 }
             });
