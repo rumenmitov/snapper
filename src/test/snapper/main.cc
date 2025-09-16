@@ -53,7 +53,9 @@ summary (void)
 void
 test_snapshot_creation (Snapper::Connection &snapper)
 {
-  if (snapper.init_snapshot () != Snapper::Ok)
+  Result res = snapper.init_snapshot ();
+  
+  if (res != Snapper::Ok && res != Snapper::NoPriorGen)
     {
       TEST (false);
     }
@@ -103,7 +105,6 @@ test_snapshot_purge (Snapper::Connection &snapper)
 
   TEST (ok);
 }
-
 
 void
 Component::construct (Genode::Env &env)

@@ -624,7 +624,7 @@ namespace Snapper
       }
 
     res = __load_gen (_gen);
-    if (res != Ok)
+    if (res == LoadGenFailed)
       goto CLEAN_RET;
 
     while (true)
@@ -979,7 +979,7 @@ namespace Snapper
       }
 
     if (latest == "")
-      return Ok;
+      return NoPriorGen;
 
     try
       {

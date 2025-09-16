@@ -41,6 +41,7 @@ namespace Snapper
   enum Result
   {
     Ok,
+    NoPriorGen,
     InvalidState,
     InitFailed,
     LoadGenFailed,
