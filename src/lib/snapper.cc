@@ -588,16 +588,15 @@ namespace Snapper
         return InvalidState;
       }
 
+    /* INFO
+       Check that we have the minimum allowed generation count.
+    */
     if (__num_gen () - 1 < config.min_snapshots)
       {
         Genode::error ("purging generation will reduce snapshot count to less "
                        "than allowed!");
         return PurgeDenied;
       }
-
-    /* INFO
-       Check that we have the minimum allowed generation count.
-    */
 
     state = Purge;
     Snapper::Result res = Ok;
@@ -607,10 +606,13 @@ namespace Snapper
 
     if (_gen == "")
       {
-        snapper_root.for_each_entry ([&_gen] (Genode::Directory::Entry &e) {
+        snapper_root.for_each_entry ([this, &_gen] (Genode::Directory::Entry &e) {
           if (_gen == "" || _gen > e.name ())
             {
-              _gen = e.name ();
+              if (__valid_archive (
+                    Genode::Directory::join (e.name (), "archive"))) {
+                _gen = e.name ();
+              }
             }
         });
       }
@@ -948,6 +950,7 @@ namespace Snapper
     snapshot_file_count = 0;
     total_snapshot_objects = 0;
 
+    snapshot.destruct();
     generation.destruct ();
 
     archiver.destruct ();
@@ -983,6 +986,10 @@ namespace Snapper
 
     try
       {
+        if (config.verbose) {
+          Genode::log("loading generation: ", latest);
+        }
+
         Genode::Path<Vfs::MAX_PATH_LEN> archive_path
             = Genode::Directory::join (latest, "archive");
 

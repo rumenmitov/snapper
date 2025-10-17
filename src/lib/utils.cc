@@ -4,9 +4,22 @@ Genode::String<
     Vfs::Directory_service::Dirent::Name::MAX_LEN>
 timestamp_to_str (const Rtc::Timestamp &ts)
 {
+  Genode::String<4+1> year (ts.year);
+  Genode::String<2+1> month (ts.month);
+  Genode::String<2+1> day (ts.day);
+  Genode::String<2+1> hour (ts.hour);
+  Genode::String<2+1> minute (ts.minute);
+  Genode::String<2+1> second (ts.second);
+
+  month = (ts.month < 10) ? Genode::String<2+1>("0", month) : month;
+  day = (ts.day < 10) ? Genode::String<2+1>("0", day) : day;
+  hour = (ts.hour < 10) ? Genode::String<2+1>("0", hour) : hour;
+  minute = (ts.minute < 10) ? Genode::String<2+1>("0", minute) : minute;
+  second = (ts.second < 10) ? Genode::String<2+1>("0", second) : second;
+  
   Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> str (
-      ts.year, "-", ts.month, "-", ts.day, " ", ts.hour, ":", ts.minute, ":",
-      ts.second);
+      year, "-", month, "-", day, " ", hour, ":", minute, ":",
+      second);
 
   return str;
 }
