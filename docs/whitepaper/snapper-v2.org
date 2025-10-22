@@ -210,9 +210,9 @@ Example[fn:3] of an archive file's data section corresponding to the multi-backl
 The archive file has the following structure:
 
 #+begin_example
-+----+----------------+------------...
-| v  | crc            |   data
-+----+----------------+------------...
++----+----------------+---------...
+| v  | crc            | data
++----+----------------+---------...
 #+end_example
 
 | Symbol | Size        | Description                                                    |
@@ -425,6 +425,9 @@ Make sure [[#init-snapper][Snapper is initialized]].
 #+end_src
 
 **** For each component's data that should be saved in the snapshot.
+:properties:
+:custom_id: take_snapshot
+:end:
 #+begin_src c++
   int payload = 5;
   Genode::size_t size = sizeof(payload);
@@ -435,6 +438,9 @@ Make sure [[#init-snapper][Snapper is initialized]].
 #+end_src
 
 **** Finally save mark the snapshot as complete and cleanup.
+:properties:
+:custom_id: commit_snapshot
+:end:
 #+begin_src c++
   snapper.commit_snapshot();
 #+end_src

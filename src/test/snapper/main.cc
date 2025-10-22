@@ -87,7 +87,11 @@ test_successful_recovery (Snapper::Connection &snapper)
 
   for (int i = 1; i <= TESTS; i++)
     {
-      snapper.restore ((char *)&value, size, i);
+      Snapper::Result res = snapper.restore ((char *)&value, size, i);
+      if (res != Ok) {
+        TEST(false);
+      }
+
       if (value != i)
         TEST (false);
     }

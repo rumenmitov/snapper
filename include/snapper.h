@@ -14,6 +14,7 @@
 #include <util/noncopyable.h>
 #include <vfs/simple_env.h>
 #include <vfs/types.h>
+#include <timer_session/connection.h>
 
 namespace Snapper
 {
@@ -172,17 +173,33 @@ namespace Snapper
     };
 
     Archive () = delete;
-    Archive (Main &snapper) : archive (), snapper (snapper) {}
+
+    /**
+     * @brief Constructs a new Archive to keep track of backlink
+     * mappings.
+     * @throws Genode::Create_failed
+     */
+    Archive (Main &);
+
     ~Archive ();
 
     ArchiveContainer archive;
     Main &snapper;
+    Genode::uint64_t total_backlinks = 0;
 
     /**
      * @brief Inserts entry into the archive. If the key is already
      *        present the entry is prepended to a FIFO queue.
      */
     void insert (const ArchiveKey, const Genode::String<Vfs::MAX_PATH_LEN> &);
+
+    /**
+     * @brief Saves the archive structure to a file in the specified
+     * directory. Prepends the Snapper version and the CRC of the
+     * archive structure.
+     */
+    void commit (Genode::Directory &,
+                 const Genode::String<Vfs::MAX_PATH_LEN> & = "archive");
 
     /**
      * @brief Removes entry from archive.
@@ -255,6 +272,7 @@ namespace Snapper
     Genode::Heap heap;
     Genode::Root_directory snapper_root;
     Rtc::Connection rtc;
+    Timer::Connection timer;
 
     Config config;
 
@@ -265,7 +283,6 @@ namespace Snapper
     Genode::Reconstructible<Genode::Directory> snapshot;
     Genode::String<Vfs::MAX_PATH_LEN> snapshot_dir_path;
     Genode::uint64_t snapshot_file_count = 0;
-    Genode::uint64_t total_snapshot_objects = 0;
 
     Genode::Reconstructible<Archive> archiver;
 

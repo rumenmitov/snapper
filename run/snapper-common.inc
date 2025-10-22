@@ -10,6 +10,12 @@
 </default-route>
 <default caps="100" ram="100M"/>
 
+<start name="timer">
+	<provides>
+		<service name="Timer"/>
+	</provides>
+</start>
+
 <start name="linux_rtc" ld="no">
 	<provides>
 		<service name="Rtc"/>

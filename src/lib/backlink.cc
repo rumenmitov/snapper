@@ -249,9 +249,29 @@ namespace Snapper
       {
         Genode::New_file writer (archive.snapper.snapper_root, value);
 
-        // version
+        Genode::size_t _buf_size = sizeof (Snapper::VERSION)
+                                   + sizeof (Snapper::CRC)
+                                   + sizeof (Snapper::RC) + data.num_bytes;
+
+        char *_buf = new (archive.snapper.heap) char[_buf_size];
+
+        Genode::memcpy (_buf, (char *)&version, sizeof (Snapper::VERSION));
+
+        Genode::memcpy (_buf + sizeof (Snapper::VERSION), (char *)&crc,
+                        sizeof (Snapper::CRC));
+
+        Genode::memcpy (_buf + sizeof (Snapper::VERSION)
+                            + sizeof (Snapper::CRC),
+                        (char *)&reference_count, sizeof (Snapper::RC));
+
+        Genode::memcpy (_buf + sizeof (Snapper::VERSION)
+                            + sizeof (Snapper::CRC) + sizeof (Snapper::RC),
+                        data.start, data.num_bytes);
+
         Genode::New_file::Append_result write_res
-            = writer.append ((char *)&version, sizeof (Snapper::VERSION));
+          = writer.append (_buf, _buf_size);
+
+        archive.snapper.heap.free(_buf, _buf_size);
 
         if (write_res != Genode::New_file::Append_result::OK)
           {
@@ -262,42 +282,6 @@ namespace Snapper
             goto CLEAN_RET;
           }
 
-        // integrity
-        write_res = writer.append ((char *)&crc, sizeof (Snapper::CRC));
-
-        if (write_res != Genode::New_file::Append_result::OK)
-          {
-            res = Genode::Attempt<Snapper::RC,
-                                  Snapper::Archive::Backlink::Error> (
-                WriteErr);
-
-            goto CLEAN_RET;
-          }
-
-        // reference count
-        write_res
-            = writer.append ((char *)&reference_count, sizeof (Snapper::RC));
-
-        if (write_res != Genode::New_file::Append_result::OK)
-          {
-            res = Genode::Attempt<Snapper::RC,
-                                  Snapper::Archive::Backlink::Error> (
-                WriteErr);
-
-            goto CLEAN_RET;
-          }
-
-        // data
-        write_res = writer.append (data.start, data.num_bytes);
-
-        if (write_res != Genode::New_file::Append_result::OK)
-          {
-            res = Genode::Attempt<Snapper::RC,
-                                  Snapper::Archive::Backlink::Error> (
-                WriteErr);
-
-            goto CLEAN_RET;
-          }
       }
     catch (Genode::New_file::Create_failed)
       {

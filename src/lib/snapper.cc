@@ -16,7 +16,8 @@ namespace Snapper
   Main::Main (Genode::Env &env)
       : rom (env, "config"), heap (env.ram (), env.rm ()),
         snapper_root (env, heap, rom.xml ().sub_node ("vfs")), rtc (env),
-        config (), generation (static_cast<Vfs::Simple_env &> (snapper_root)),
+        timer (env), config (),
+        generation (static_cast<Vfs::Simple_env &> (snapper_root)),
         snapshot (static_cast<Vfs::Simple_env &> (snapper_root)),
         snapshot_dir_path ("/"), archiver (*this)
   {
@@ -75,7 +76,6 @@ namespace Snapper
 
     state = Creation;
     snapshot_file_count = 0;
-    total_snapshot_objects = 0;
 
     Result res = __remove_unfinished_gen ();
     if (res != Ok)
@@ -84,12 +84,6 @@ namespace Snapper
     res = __init_gen ();
     if (res != Ok)
       return res;
-
-    res = __load_gen ();
-    if (res == LoadGenFailed)
-      {
-        state = Dormant;
-      }
 
     return res;
   }
@@ -212,13 +206,6 @@ namespace Snapper
         },
         [&new_file_needed] () { new_file_needed = true; });
 
-    /* INFO
-       Increment total_snapshot_objects before returning, because we
-       will need this number when allocating space for the archive CRC
-       in commit_snapshot().
-     */
-    total_snapshot_objects++;
-
     if (!new_file_needed)
       return Ok;
 
@@ -250,47 +237,38 @@ namespace Snapper
 
         Genode::New_file file (*snapshot, filepath_base);
 
-        // writing Snapper version
-        Genode::New_file::Append_result res
-            = file.append ((char *)&ver, sizeof (Snapper::VERSION));
+        Genode::size_t buf_size = sizeof (Snapper::VERSION)
+                                  + sizeof (Snapper::CRC)
+                                  + sizeof (Snapper::RC) + size;
 
-        if (res != Genode::New_file::Append_result::OK)
-          {
-            Genode::error ("could not write version to file: ", filepath_base);
-            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-          }
+        char *buf = new (heap) char[buf_size];
 
-        // writing crc
-        res = file.append ((char *)&crc, sizeof (Snapper::CRC));
+        Genode::memcpy (buf, (char *)&ver, sizeof (Snapper::VERSION));
+        Genode::memcpy (buf + sizeof (Snapper::VERSION), (char *)&crc,
+                        sizeof (Snapper::CRC));
 
-        if (res != Genode::New_file::Append_result::OK)
-          {
-            Genode::error ("could not write CRC to file: ", filepath_base);
-            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-          }
-
-        // writing reference count
         /* INFO
          The reference count will be incremented when the full
          snapshot is committed. It starts at 0, because the snapshot
          file is currently not referenced by any archive file.
         */
         Snapper::RC reference_count = 0;
-        res = file.append ((char *)&reference_count, sizeof (Snapper::RC));
+        Genode::memcpy (buf + sizeof (Snapper::VERSION)
+                            + sizeof (Snapper::CRC),
+                        (char *)&reference_count, sizeof (Snapper::RC));
+
+        Genode::memcpy (buf + sizeof (Snapper::VERSION) + sizeof (Snapper::CRC)
+                            + sizeof (Snapper::RC),
+                        payload, size);
+
+        Genode::New_file::Append_result res = file.append (buf, buf_size);
+
+        heap.free (buf, buf_size);
 
         if (res != Genode::New_file::Append_result::OK)
           {
-            Genode::error ("could not write reference count to file: ",
+            Genode::error ("could not write to backlink file: ",
                            filepath_base);
-            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-          }
-
-        // writing payload
-        res = file.append ((char *)payload, size);
-
-        if (res != Genode::New_file::Append_result::OK)
-          {
-            Genode::error ("could not write payload to file: ", filepath_base);
             throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
       }
@@ -305,7 +283,6 @@ namespace Snapper
 
     archiver->insert (identifier, Genode::Directory::join (snapshot_dir_path,
                                                            filepath_base));
-
     return Ok;
   }
 
@@ -321,125 +298,18 @@ namespace Snapper
         return InvalidState;
       }
 
-    try
+    if (!archiver.constructed ())
       {
-        Genode::New_file archive (*generation, "archive");
-
-        if (!archiver.constructed ())
+        if (config.verbose)
           {
-            if (config.verbose)
-              {
-                Genode::log ("archiver is empty! Aborting the snapshot.");
-              }
-
-            __abort_snapshot ();
-            return InvalidState;
+            Genode::log ("archiver is empty! Aborting the snapshot.");
           }
 
-        constexpr Genode::size_t key_size = sizeof (Archive::ArchiveKey);
-        constexpr Genode::size_t val_size
-            = sizeof (decltype (Archive::Backlink::value));
-        constexpr Genode::size_t size = key_size + val_size;
-
-        /* INFO
-         * Save archive entries into a buffer first, so that the CRC
-         * can be calculated. Then write the buffer to the archive
-         * file.
-         */
-        char *_archive_buf
-            = (char *)heap.alloc (size * total_snapshot_objects);
-
-        Genode::memset (_archive_buf, 0, size * total_snapshot_objects);
-
-        Genode::uint64_t idx = 0;
-
-        archiver->archive.for_each (
-            [&_archive_buf, &idx] (const Archive::ArchiveEntry &entry) {
-              entry.queue.for_each ([_archive_buf, &idx, &entry] (
-                                        const Archive::Backlink &backlink) {
-                Genode::memcpy (_archive_buf + (idx * size), &entry.name,
-                                key_size);
-
-                Genode::memcpy (_archive_buf + (idx * size + key_size),
-                                backlink.value.string (), val_size);
-
-                idx++;
-              });
-            });
-
-        Snapper::VERSION ver = Version;
-        Snapper::CRC crc = crc32 (_archive_buf, size * total_snapshot_objects);
-
-        Genode::New_file::Append_result res
-            = archive.append ((char *)&ver, sizeof (Snapper::VERSION));
-
-        if (res != Genode::New_file::Append_result::OK)
-          {
-            Genode::error ("failed to write the version to the archive file! "
-                           "Aborting the snapshot!");
-
-            __abort_snapshot ();
-
-            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-          }
-
-        res = archive.append ((char *)&crc, sizeof (Snapper::CRC));
-        if (res != Genode::New_file::Append_result::OK)
-          {
-            Genode::error ("failed to write the CRC to the archive file! "
-                           "Aborting the snapshot!");
-
-            __abort_snapshot ();
-
-            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-          }
-
-        res = archive.append (_archive_buf, size * total_snapshot_objects);
-
-        if (res != Genode::New_file::Append_result::OK)
-          {
-            Genode::error (
-                "failed to write the archive entry to the archive file! "
-                "Aborting the snapshot!");
-
-            __abort_snapshot ();
-
-            throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-          }
-
-        heap.free (_archive_buf, size * total_snapshot_objects);
-      }
-    catch (Genode::New_file::Create_failed)
-      {
-        Genode::error ("failed to create archive file for this generation! "
-                       "Aborting the snapshot!");
-
         __abort_snapshot ();
-
-        throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
+        return InvalidState;
       }
-    catch (Genode::Out_of_ram)
-      {
-        Genode::error ("snapper is out of RAM! Aborting the snapshot!");
-        __abort_snapshot ();
 
-        throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-      }
-    catch (Genode::Out_of_caps)
-      {
-        Genode::error (
-            "snapper is out of capabilities! Aborting the snapshot!");
-        __abort_snapshot ();
-
-        throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-      }
-    catch (Genode::Denied)
-      {
-        Genode::error ("memory allocation denied! Aborting the snapshot!");
-        __abort_snapshot ();
-
-        throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
-      }
+    archiver->commit (*generation);
 
     __update_references ();
 
@@ -570,8 +440,8 @@ namespace Snapper
     if (generation.constructed ())
       generation.destruct ();
 
-    if (archiver.constructed ())
-      archiver.destruct ();
+    // INFO Do not destruct the archiver as it will be used as the
+    // basis for future snapshots.
 
     purge_expired ();
 
@@ -606,15 +476,17 @@ namespace Snapper
 
     if (_gen == "")
       {
-        snapper_root.for_each_entry ([this, &_gen] (Genode::Directory::Entry &e) {
-          if (_gen == "" || _gen > e.name ())
-            {
-              if (__valid_archive (
-                    Genode::Directory::join (e.name (), "archive"))) {
-                _gen = e.name ();
-              }
-            }
-        });
+        snapper_root.for_each_entry (
+            [this, &_gen] (Genode::Directory::Entry &e) {
+              if (_gen == "" || _gen > e.name ())
+                {
+                  if (__valid_archive (
+                          Genode::Directory::join (e.name (), "archive")))
+                    {
+                      _gen = e.name ();
+                    }
+                }
+            });
       }
 
     if (_gen == "")
@@ -737,6 +609,7 @@ namespace Snapper
             {
               Rtc::Timestamp ts
                   = str_to_timestamp ((char *)entry.name ().string ());
+
               if (timestamp_to_seconds (ts) < expiry)
                 {
                   if (purge (entry.name ()) != Ok)
@@ -761,9 +634,9 @@ namespace Snapper
    */
 
   bool
-  Main::__valid_archive (const Genode::Path<Vfs::MAX_PATH_LEN> &archive)
+  Main::__valid_archive (const Genode::Path<Vfs::MAX_PATH_LEN> &archive_path)
   {
-    if (!snapper_root.file_exists (archive))
+    if (!snapper_root.file_exists (archive_path))
       {
         /* INFO
            No log message here, as this branch is commonly used when
@@ -776,7 +649,12 @@ namespace Snapper
 
     try
       {
-        Genode::Readonly_file _archive (snapper_root, archive);
+        Genode::Readonly_file _archive (snapper_root, archive_path);
+
+        // get data size
+        Vfs::file_size data_size = snapper_root.file_size (archive_path)
+                                   - sizeof (Snapper::CRC)
+                                   - sizeof (Snapper::VERSION);
 
         // check version
         Genode::Readonly_file::At pos{ 0 };
@@ -787,7 +665,9 @@ namespace Snapper
 
         if (_archive.read (pos, version_buf) == 0)
           {
-            Genode::error ("invalid archive, missing version: ", archive);
+            // INFO No error message since this could be called from
+            // __load_gen() which is not an error, only means that the
+            // archive file is not yet valid.
             return false;
           }
 
@@ -802,40 +682,29 @@ namespace Snapper
           }
 
         // check CRC
-        pos.value += sizeof (Snapper::VERSION);
+        pos.value = sizeof (Snapper::VERSION);
 
         char _crc_buf[sizeof (Snapper::CRC)];
         Genode::Byte_range_ptr crc_buf (_crc_buf, sizeof (Snapper::CRC));
 
         if (_archive.read (pos, crc_buf) == 0)
           {
-            Genode::error ("invalid archive, missing CRC: ", archive);
+            Genode::error ("invalid archive, missing CRC: ", archive_path);
             return false;
           }
 
         Snapper::CRC crc = *(reinterpret_cast<Snapper::CRC *> (crc_buf.start));
 
-        // get data size
-        Vfs::Dir_file_system::Stat stats;
-        if (snapper_root.root_dir ().stat (archive.string (), stats)
-            != Vfs::Dir_file_system::STAT_OK)
-          {
-            Genode::error ("could not open the stats for: ", archive);
-            return false;
-          }
-
-        Genode::size_t size
-            = stats.size - sizeof (Snapper::VERSION) - sizeof (Snapper::CRC);
-
         // get data
-        pos.value += sizeof (Snapper::CRC);
+        pos.value = sizeof (Snapper::VERSION) + sizeof (Snapper::CRC);
 
-        char *_data_buf = (char *)heap.alloc (size);
-        Genode::Byte_range_ptr data (_data_buf, size);
+        char *_data_buf = (char *)heap.alloc (data_size);
+        Genode::Byte_range_ptr data (_data_buf, data_size);
 
         if (_archive.read (pos, data) == 0)
           {
-            Genode::error ("invalid archive, missing data: ", archive);
+            Genode::error ("invalid archive, missing data: ", archive_path);
+            heap.free (data.start, data.num_bytes);
             return false;
           }
 
@@ -845,8 +714,9 @@ namespace Snapper
 
         if (integrity)
           {
-            Genode::error ("invalid archive, integrity check failed: ",
-                           archive);
+            // INFO No error message since this could be called from
+            // __load_gen() which is not an error, only means that the
+            // archive file is not yet valid.
             return false;
           }
       }
@@ -914,6 +784,16 @@ namespace Snapper
     Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> timestamp
         = timestamp_to_str (rtc.current_time ());
 
+    // INFO While loop to prevent two identical timestamps (older
+    // generation will be overriden by newer one!).
+    while (snapper_root.directory_exists (timestamp))
+      {
+        Genode::warning (
+            "generation name is already taken, waiting for a new one...");
+        timer.msleep (1000);
+        timestamp = timestamp_to_str (rtc.current_time ());
+      };
+
     snapper_root.create_sub_directory (timestamp);
     if (!snapper_root.directory_exists (timestamp))
       {
@@ -948,12 +828,9 @@ namespace Snapper
   {
     snapshot_dir_path = "/";
     snapshot_file_count = 0;
-    total_snapshot_objects = 0;
 
-    snapshot.destruct();
+    snapshot.destruct ();
     generation.destruct ();
-
-    archiver.destruct ();
   }
 
   Snapper::Result
@@ -961,53 +838,54 @@ namespace Snapper
       const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
           &generation)
   {
-    archiver.construct (*this);
-
     Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> latest
         = generation;
 
+    bool validity_verified = false;
+
     if (latest == "")
       {
-        snapper_root.for_each_entry (
-            [this, &latest] (Genode::Directory::Entry &entry) {
-              if (latest == "" || entry.name () > latest)
+        snapper_root.for_each_entry ([this, &validity_verified, &latest] (
+                                         Genode::Directory::Entry &entry) {
+          if (latest == "" || entry.name () > latest)
+            {
+              latest = entry.name ();
+              if (__valid_archive (
+                      Genode::Directory::join (entry.name (), "archive")))
                 {
-                  if (__valid_archive (
-                          Genode::Directory::join (entry.name (), "archive")))
-                    {
-                      latest = entry.name ();
-                    }
+                  latest = entry.name ();
+                  validity_verified = true;
                 }
-            });
+            }
+        });
       }
 
     if (latest == "")
       return NoPriorGen;
 
+    if (!validity_verified)
+      {
+        if (!__valid_archive (Genode::Directory::join (latest, "archive")))
+          {
+            return NoPriorGen;
+          }
+      }
+
     try
       {
-        if (config.verbose) {
-          Genode::log("loading generation: ", latest);
-        }
-
-        Genode::Path<Vfs::MAX_PATH_LEN> archive_path
-            = Genode::Directory::join (latest, "archive");
-
-        if (!__valid_archive (archive_path))
+        if (config.verbose)
           {
-            if (config.integrity)
-              {
-                Genode::error ("invalid archive file failed integrity check");
-                throw CrashStates::INVALID_ARCHIVE_FILE;
-              }
-
-            return LoadGenFailed;
+            Genode::log ("loading generation: ", latest);
           }
 
-        Genode::Readonly_file archive_file (snapper_root, archive_path);
+        archiver.construct (*this);
 
-        Genode::Readonly_file::At pos (sizeof (Snapper::VERSION)
-                                       + sizeof (Snapper::CRC));
+        // INFO Load the latest valid generation.
+        Genode::Readonly_file archive_file (
+            snapper_root, Genode::Directory::join (latest, "archive"));
+
+        Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION)
+                                       + sizeof (Snapper::CRC) };
 
         char _key_buf[sizeof (Archive::ArchiveKey)];
         char _val_buf[sizeof (decltype (Archive::Backlink::value))];
@@ -1027,14 +905,17 @@ namespace Snapper
 
             bytes_read = archive_file.read (pos, val_buf);
             if (bytes_read == 0)
-              break;
+              {
+                break;
+              }
 
             pos.value += bytes_read;
 
             Archive::ArchiveKey key
                 = *(reinterpret_cast<Archive::ArchiveKey *> (key_buf.start));
 
-            archiver->insert (key, Genode::Cstring (val_buf.start));
+            Genode::Cstring val_str (val_buf.start);
+            archiver->insert (key, val_str);
           }
       }
     catch (Genode::File::Open_failed)
@@ -1064,7 +945,6 @@ namespace Snapper
 
     snapshot_dir_path = "/";
     snapshot_file_count = 0;
-    total_snapshot_objects = 0;
 
     if (generation.constructed ())
       {
