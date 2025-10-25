@@ -764,35 +764,28 @@ namespace Snapper
   Snapper::Result
   Main::__remove_unfinished_gen (void)
   {
-    Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> latest = "";
+    Snapper::Result res = Ok;
+    
+    snapper_root.for_each_entry ([this, &res] (Genode::Directory::Entry &e) {
+        Genode::Path<Vfs::MAX_PATH_LEN> archive
+          = Genode::Directory::join (e.name(), "archive");
 
-    snapper_root.for_each_entry ([&latest] (Genode::Directory::Entry &e) {
-      if (latest == "" || e.name () > latest)
-        {
-          latest = e.name ();
+        if (! __valid_archive(archive)) {
+          snapper_root.unlink (e.name());
+          if (snapper_root.directory_exists (e.name()))
+              {
+                Genode::error ("could not remove old generation: ", e.name());
+                res = InitFailed;
+              }
         }
+
     });
 
-    if (latest != "")
-      {
-        Genode::Path<Vfs::MAX_PATH_LEN> old
-            = Genode::Directory::join (latest, "archive");
 
-        if (!snapper_root.file_exists (old))
-          {
-            snapper_root.unlink (latest);
-            if (snapper_root.directory_exists (latest))
-              {
-                Genode::error ("could not remove old generation: ", latest);
-                return InitFailed;
-              }
-          }
-      }
-
-    if (config.verbose)
+    if (config.verbose && res == Ok)
       Genode::log ("no unfinished generation remain.");
 
-    return Ok;
+    return res;
   }
 
   Snapper::Result
@@ -921,7 +914,6 @@ namespace Snapper
         decltype (Archive::total_backlinks) num_backlinks
             = *(reinterpret_cast<decltype (Archive::total_backlinks) *> (
                 _num_backlinks_buf));
-        Genode::warning ("num: ", num_backlinks);
 
         char _key_buf[sizeof (Archive::ArchiveKey)];
         char _val_buf[sizeof (decltype (Archive::Backlink::value))];

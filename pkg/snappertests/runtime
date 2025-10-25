@@ -27,7 +27,7 @@
 		</default-route>
 		<default caps="100" ram="1M"/>
 
-    <start name="vfs_block" ram="1G">
+    <start name="vfs_block" ram="1G" caps="300">
 		  <provides><service name="Block"/></provides>
 		  <config>
         <vfs>
