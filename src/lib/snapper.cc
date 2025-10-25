@@ -652,9 +652,10 @@ namespace Snapper
         Genode::Readonly_file _archive (snapper_root, archive_path);
 
         // get data size
-        Vfs::file_size data_size = snapper_root.file_size (archive_path)
-                                   - sizeof (Snapper::CRC)
-                                   - sizeof (Snapper::VERSION);
+        Vfs::file_size data_size
+            = snapper_root.file_size (archive_path)
+              - sizeof (decltype (Archive::total_backlinks))
+              - sizeof (Snapper::CRC) - sizeof (Snapper::VERSION);
 
         // check version
         Genode::Readonly_file::At pos{ 0 };
@@ -695,8 +696,24 @@ namespace Snapper
 
         Snapper::CRC crc = *(reinterpret_cast<Snapper::CRC *> (crc_buf.start));
 
-        // get data
+        // get number of entries in the data
         pos.value = sizeof (Snapper::VERSION) + sizeof (Snapper::CRC);
+
+        char _num_backlinks_buf[sizeof (decltype (Archive::total_backlinks))];
+        Genode::Byte_range_ptr num_backlinks_buf (_num_backlinks_buf,
+                                                  sizeof (_num_backlinks_buf));
+
+        if (_archive.read (pos, num_backlinks_buf) == 0)
+          {
+            Genode::error (
+                "invalid archive, missing the number of data entries: ",
+                archive_path);
+            return false;
+          }
+
+        // get data
+        pos.value = sizeof (Snapper::VERSION) + sizeof (Snapper::CRC)
+                    + sizeof (decltype (Archive::total_backlinks));
 
         char *_data_buf = (char *)heap.alloc (data_size);
         Genode::Byte_range_ptr data (_data_buf, data_size);
@@ -887,26 +904,47 @@ namespace Snapper
         Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION)
                                        + sizeof (Snapper::CRC) };
 
+        char _num_backlinks_buf[sizeof (decltype (Archive::total_backlinks))];
+        Genode::Byte_range_ptr num_backlinks_buf (_num_backlinks_buf,
+                                                  sizeof (_num_backlinks_buf));
+
+        if (archive_file.read (pos, num_backlinks_buf) == 0)
+          {
+            Genode::error ("missing number of backlinks in the archive file "
+                           "of generation: ",
+                           latest);
+            throw CrashStates::INVALID_ARCHIVE_FILE;
+          }
+
+        pos.value += sizeof (decltype (Archive::total_backlinks));
+
+        decltype (Archive::total_backlinks) num_backlinks
+            = *(reinterpret_cast<decltype (Archive::total_backlinks) *> (
+                _num_backlinks_buf));
+        Genode::warning ("num: ", num_backlinks);
+
         char _key_buf[sizeof (Archive::ArchiveKey)];
         char _val_buf[sizeof (decltype (Archive::Backlink::value))];
 
         Genode::Byte_range_ptr key_buf (_key_buf, sizeof (_key_buf));
         Genode::Byte_range_ptr val_buf (_val_buf, sizeof (_val_buf));
 
-        while (true)
+        for (decltype (Archive::total_backlinks) i = 0; i < num_backlinks; i++)
           {
             Genode::size_t bytes_read = archive_file.read (pos, key_buf);
-            if (bytes_read == 0)
+            if (bytes_read != key_buf.num_bytes)
               {
-                break;
+                Genode::error ("invalid archive file: invalid key size!");
+                throw CrashStates::INVALID_ARCHIVE_FILE;
               }
 
             pos.value += bytes_read;
 
             bytes_read = archive_file.read (pos, val_buf);
-            if (bytes_read == 0)
+            if (bytes_read != val_buf.num_bytes)
               {
-                break;
+                Genode::error ("invalid archive file: invalid value size!");
+                throw CrashStates::INVALID_ARCHIVE_FILE;
               }
 
             pos.value += bytes_read;

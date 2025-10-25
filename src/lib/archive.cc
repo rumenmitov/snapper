@@ -54,7 +54,7 @@ namespace Snapper
         });
 
     total_backlinks++;
-    
+
     if (snapper.config.verbose)
       {
         Genode::log ("archive entry inserted: ", key, " -> \"",
@@ -84,7 +84,8 @@ namespace Snapper
 
         constexpr Genode::size_t kv_pair_size = key_size + val_size;
 
-        const Genode::size_t archive_data_size = total_backlinks * kv_pair_size;
+        const Genode::size_t archive_data_size
+            = total_backlinks * kv_pair_size;
         char *archive_data_buf = new (snapper.heap) char[archive_data_size];
 
         Genode::uint64_t idx = 0;
@@ -103,19 +104,27 @@ namespace Snapper
           });
         });
 
-        const Genode::size_t archive_buf_size = sizeof (Snapper::VERSION)
-                                                + sizeof (Snapper::CRC)
-                                                + archive_data_size;
+        const Genode::size_t archive_buf_size
+            = sizeof (Snapper::VERSION) + sizeof (Snapper::CRC)
+              + sizeof (decltype (total_backlinks)) + archive_data_size;
+
         char *archive_buf = new (snapper.heap) char[archive_buf_size];
 
         Snapper::VERSION ver = Version;
         Snapper::CRC crc = crc32 (archive_data_buf, archive_data_size);
 
         Genode::memcpy (archive_buf, &ver, sizeof (Snapper::VERSION));
+
         Genode::memcpy (archive_buf + sizeof (Snapper::VERSION), &crc,
                         sizeof (Snapper::CRC));
+
         Genode::memcpy (archive_buf + sizeof (Snapper::VERSION)
                             + sizeof (Snapper::CRC),
+                        &total_backlinks, sizeof (decltype (total_backlinks)));
+
+        Genode::memcpy (archive_buf + sizeof (Snapper::VERSION)
+                            + sizeof (Snapper::CRC)
+                            + sizeof (decltype (total_backlinks)),
                         archive_data_buf, archive_data_size);
 
         snapper.heap.free (archive_data_buf, archive_data_size);

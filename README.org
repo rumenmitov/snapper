@@ -43,6 +43,8 @@ Run this inside the container:
   DEPOT_DIR=/genode/repos/snapper/var/depot FORCE_VERSION=2025-07-09 /genode/tool/depot/create rumen/bin/x86_64/vfs_lwext4
 
   mkdir /genode/repos/snapper/raw
+
+  # NOTE: seek=16 will make the file only 16MB. If you want to run larger workloads increase this number.
   dd if=/dev/zero of=/genode/repos/snapper/raw/snapper_block.raw bs=1M seek=16 count=0
   mkfs.ext4 -O^metadata_csum -F /genode/repos/snapper/raw/snapper_block.raw
 #+end_src
