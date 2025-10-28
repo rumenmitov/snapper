@@ -187,4 +187,61 @@ namespace Snapper
         Genode::log ("archive entry removed: ", key);
       }
   }
+
+  void
+  Snapper::Archive::extract_from_archive_file (
+      const Genode::Readonly_file &archive_file)
+  {
+    Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION)
+                                   + sizeof (Snapper::CRC) };
+
+    char _num_backlinks_buf[sizeof (decltype (Archive::total_backlinks))];
+    Genode::Byte_range_ptr num_backlinks_buf (_num_backlinks_buf,
+                                              sizeof (_num_backlinks_buf));
+
+    if (archive_file.read (pos, num_backlinks_buf) == 0)
+      {
+        Genode::error ("missing number of backlinks in the archive file");
+        throw CrashStates::INVALID_ARCHIVE_FILE;
+      }
+
+    pos.value += sizeof (decltype (Archive::total_backlinks));
+
+    decltype (Archive::total_backlinks) num_backlinks
+        = *(reinterpret_cast<decltype (Archive::total_backlinks) *> (
+            _num_backlinks_buf));
+
+    char _key_buf[sizeof (Archive::ArchiveKey)];
+    char _val_buf[sizeof (decltype (Archive::Backlink::value))];
+
+    Genode::Byte_range_ptr key_buf (_key_buf, sizeof (_key_buf));
+    Genode::Byte_range_ptr val_buf (_val_buf, sizeof (_val_buf));
+
+    for (decltype (Archive::total_backlinks) i = 0; i < num_backlinks; i++)
+      {
+        Genode::size_t bytes_read = archive_file.read (pos, key_buf);
+        if (bytes_read != key_buf.num_bytes)
+          {
+            Genode::error ("invalid archive file: invalid key size!");
+            throw CrashStates::INVALID_ARCHIVE_FILE;
+          }
+
+        pos.value += bytes_read;
+
+        bytes_read = archive_file.read (pos, val_buf);
+        if (bytes_read != val_buf.num_bytes)
+          {
+            Genode::error ("invalid archive file: invalid value size!");
+            throw CrashStates::INVALID_ARCHIVE_FILE;
+          }
+
+        pos.value += bytes_read;
+
+        Archive::ArchiveKey key
+            = *(reinterpret_cast<Archive::ArchiveKey *> (key_buf.start));
+
+        Genode::Cstring val (val_buf.start);
+        insert(key, val);
+      }
+  }
 }

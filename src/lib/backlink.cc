@@ -4,6 +4,7 @@
 #include <vfs/vfs_handle.h>
 
 #include "snapper.h"
+#include "utils.h"
 
 namespace Snapper
 {
@@ -138,7 +139,46 @@ namespace Snapper
   Snapper::Archive::Backlink::Error
   Snapper::Archive::Backlink::get_data (Genode::Byte_range_ptr &data)
   {
+    // INFO Do not use Backlink::is_valid_backlink() here, as the
+    // result from the call to Backlink::get_integrity() is used
+    // to return the data buffer.
     Snapper::Archive::Backlink::Error err = None;
+    Snapper::CRC crc = 0;
+
+    get_version ().with_result (
+        [&] (Snapper::VERSION ver) {
+          if (ver != Snapper::Version)
+            {
+              if (archive.snapper.config.verbose)
+                Genode::warning ("backlink has a wrong version: ", value);
+
+              err = InvalidVersion;
+            }
+        },
+        [&] (auto) {
+          if (archive.snapper.config.verbose)
+            Genode::warning ("could not access backlink's version: ", value);
+
+          err = InvalidVersion;
+        });
+
+    if (err != None)
+      return err;
+
+    get_integrity ().with_result (
+        [&] (Snapper::CRC _crc) { crc = _crc; },
+        [&] (Snapper::Archive::Backlink::Error) {
+          if (archive.snapper.config.verbose)
+            {
+              Genode::warning ("could not access backlink's crc: ", value,
+                               "! Remove it to "
+                               "not receive this warning again.");
+            }
+          err = InvalidIntegrity;
+        });
+
+    if (err != None)
+      return err;
 
     get_data_size ().with_result (
         [&err, &data] (Genode::size_t size) {
@@ -175,6 +215,17 @@ namespace Snapper
       {
         Genode::error ("could not open backlink: ", value);
         return OpenErr;
+      }
+
+    if (crc32 (data.start, data.num_bytes) != crc)
+      {
+        if (archive.snapper.config.verbose)
+          Genode::warning ("backlink has an invalid CRC: ", value,
+                           "! Remove it to "
+                           "not receive this warning again.");
+
+        err = InvalidIntegrity;
+        Genode::memset (data.start, 0, data.num_bytes);
       }
 
     return None;
@@ -269,9 +320,9 @@ namespace Snapper
                         data.start, data.num_bytes);
 
         Genode::New_file::Append_result write_res
-          = writer.append (_buf, _buf_size);
+            = writer.append (_buf, _buf_size);
 
-        archive.snapper.heap.free(_buf, _buf_size);
+        archive.snapper.heap.free (_buf, _buf_size);
 
         if (write_res != Genode::New_file::Append_result::OK)
           {
@@ -281,7 +332,6 @@ namespace Snapper
 
             goto CLEAN_RET;
           }
-
       }
     catch (Genode::New_file::Create_failed)
       {
@@ -301,5 +351,46 @@ namespace Snapper
       }
 
     return res;
+  }
+
+  bool
+  Snapper::Archive::Backlink::is_backlink_valid (Snapper::CRC crc)
+  {
+    bool is_backlink_valid = true;
+
+    get_version ().with_result (
+        [&] (Snapper::VERSION version) {
+          if (version != Version)
+            {
+              if (archive.snapper.config.verbose)
+                Genode::log ("backlink has a version mismatch: ", value,
+                             ". Creating a new snapshot file.");
+
+              is_backlink_valid = false;
+            }
+        },
+        [&] (Snapper::Archive::Backlink::Error) {
+          is_backlink_valid = false;
+        });
+
+    if (!is_backlink_valid)
+      return false;
+
+    get_integrity ().with_result (
+        [&] (Snapper::CRC file_crc) {
+          if (file_crc != crc)
+            {
+              if (archive.snapper.config.verbose)
+                Genode::log ("backlink has a mismatching crc: ", value,
+                             ". Creating new snapshot file.");
+
+              is_backlink_valid = false;
+            }
+        },
+        [&] (Snapper::Archive::Backlink::Error) {
+          is_backlink_valid = false;
+        });
+
+    return is_backlink_valid;
   }
 };

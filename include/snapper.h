@@ -8,13 +8,13 @@
 #include <os/vfs.h>
 #include <root/component.h>
 #include <rtc_session/connection.h>
+#include <timer_session/connection.h>
 #include <util/attempt.h>
 #include <util/dictionary.h>
 #include <util/fifo.h>
 #include <util/noncopyable.h>
 #include <vfs/simple_env.h>
 #include <vfs/types.h>
-#include <timer_session/connection.h>
 
 namespace Snapper
 {
@@ -136,6 +136,8 @@ namespace Snapper
       enum Error
       {
         None,
+        InvalidVersion,
+        InvalidIntegrity,
         MissingFieldErr,
         InsufficientSizeErr,
         OpenErr,
@@ -144,14 +146,41 @@ namespace Snapper
         WriteErr,
       };
 
+      /**
+       * @brief Get the version of the backlink.
+       */
       Genode::Attempt<Snapper::VERSION, Error> get_version (void);
+
+      /**
+       * @brief Get the integrity of the backlink.
+       */
       Genode::Attempt<Snapper::CRC, Error> get_integrity (void);
+
+      /**
+       * @brief Get the reference count of the backlink.
+       */
       Genode::Attempt<Snapper::RC, Error> get_reference_count (void);
+
+      /**
+       * @brief Get the size of the data stored in the backlink.
+       */
       Genode::Attempt<Genode::size_t, Error> get_data_size (void);
+
+      /**
+       * @brief Get the data stored in the backlink.
+       */
       Error get_data (Genode::Byte_range_ptr &);
 
+      /**
+       * @brief Update the reference count of the backlink.
+       */
       Genode::Attempt<Snapper::RC, Error>
       set_reference_count (const Snapper::RC);
+
+      /**
+       * @brief Checks if the backlink's version and CRC are valid.
+       */
+      bool is_backlink_valid (Snapper::CRC);
     };
 
     /**
@@ -205,6 +234,13 @@ namespace Snapper
      * @brief Removes entry from archive.
      */
     void remove (const ArchiveKey);
+
+    /**
+     * @brief Reads the archive file provided, and inserts the data
+     * into the existing Archive structure.
+     * @throws Snapper::CrashStates
+     */
+    void extract_from_archive_file (const Genode::Readonly_file &);
   };
 
   class Main : Genode::Noncopyable
@@ -290,11 +326,6 @@ namespace Snapper
      * @brief Checks if archive file exists and has a valid CRC.
      */
     bool __valid_archive (const Genode::Path<Vfs::MAX_PATH_LEN> &);
-
-    /**
-     * @brief Checks if snapshot file exists and has a valid CRC.
-     */
-    bool __valid_snapshot_file (const Genode::Path<Vfs::MAX_PATH_LEN> &);
 
     /**
      * @brief Removes the last generation if it does not contain a

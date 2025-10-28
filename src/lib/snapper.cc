@@ -95,68 +95,25 @@ namespace Snapper
     if (state != Creation)
       return InvalidState;
 
-    bool new_file_needed = false;
+    bool new_backlink_needed = false;
     Snapper::CRC crc = crc32 (payload, size);
 
     // check if identifier exists in the mapping and if the crc
     // matches the calculated crc of the payload.
     archiver->archive.with_element (
         identifier,
-        [this, &new_file_needed, &crc] (Archive::ArchiveEntry &entry) {
+        [this, &new_backlink_needed, &crc] (Archive::ArchiveEntry &entry) {
           /* INFO
              Only need to check the latest backlink as it is assumed
              that all backlinks in the queue store the same data as
              part of the redundant policy.
            */
-          entry.queue.head ([this, &entry, &new_file_needed,
+          entry.queue.head ([this, &entry, &new_backlink_needed,
                              &crc] (Archive::Backlink &backlink) {
-            backlink.get_version ().with_result (
-                [this, backlink, &new_file_needed] (Snapper::VERSION version) {
-                  if (version != Version)
-                    {
-                      if (config.verbose)
-                        Genode::log ("backlink has a version mismatch: ",
-                                     backlink.value,
-                                     ". Creating a new snapshot file.");
-
-                      new_file_needed = true;
-                    }
-                },
-                [&new_file_needed] (Snapper::Archive::Backlink::Error) {
-                  new_file_needed = true;
-                });
-
-            if (new_file_needed)
+            if (!backlink.is_backlink_valid (crc))
               {
-                while (!entry.queue.empty ())
-                  {
-                    entry.queue.dequeue ([this] (Archive::Backlink &backlink) {
-                      Genode::destroy (heap, backlink._self);
-                    });
-                  }
-
-                return;
-              }
-
-            backlink.get_integrity ().with_result (
-                [this, backlink, crc,
-                 &new_file_needed] (Snapper::CRC file_crc) {
-                  if (file_crc != crc)
-                    {
-                      if (config.verbose)
-                        Genode::log (
-                            "backlink has a mismatching crc: ", backlink.value,
-                            ". Creating new snapshot file.");
-
-                      new_file_needed = true;
-                    }
-                },
-                [&new_file_needed] (Snapper::Archive::Backlink::Error) {
-                  new_file_needed = true;
-                });
-
-            if (new_file_needed)
-              {
+                // INFO Remove all the previous backlinks since they
+                // no longer correspond to the data.
                 while (!entry.queue.empty ())
                   {
                     entry.queue.dequeue ([this] (Archive::Backlink &backlink) {
@@ -168,7 +125,7 @@ namespace Snapper
               }
 
             backlink.get_reference_count ().with_result (
-                [this, &backlink, &new_file_needed] (Snapper::RC rc) {
+                [this, &backlink, &new_backlink_needed] (Snapper::RC rc) {
                   if (rc >= config.redundancy)
                     {
                       if (config.verbose)
@@ -176,7 +133,7 @@ namespace Snapper
                                      backlink.value,
                                      ". Creating redundant copy.");
 
-                      new_file_needed = true;
+                      new_backlink_needed = true;
                     }
                   else
                     {
@@ -186,13 +143,13 @@ namespace Snapper
                               "could not update reference count of: ",
                               backlink.value, "! Creating new file instead.");
 
-                          new_file_needed = true;
+                          new_backlink_needed = true;
                         }
                     }
                 },
                 [this, &entry,
-                 &new_file_needed] (Snapper::Archive::Backlink::Error) {
-                  new_file_needed = true;
+                 &new_backlink_needed] (Snapper::Archive::Backlink::Error) {
+                  new_backlink_needed = true;
 
                   while (!entry.queue.empty ())
                     {
@@ -204,9 +161,9 @@ namespace Snapper
                 });
           });
         },
-        [&new_file_needed] () { new_file_needed = true; });
+        [&new_backlink_needed] () { new_backlink_needed = true; });
 
-    if (!new_file_needed)
+    if (!new_backlink_needed)
       return Ok;
 
     // create a new snapshot file and write to it the payload metadata
@@ -364,65 +321,29 @@ namespace Snapper
 
     archiver->archive.with_element (
         identifier,
-        [this, &res, &dst, &size] (Archive::ArchiveEntry &entry) {
-          entry.queue.for_each ([this, &res, &dst,
-                                 &size] (Archive::Backlink &backlink) {
-            backlink.get_version ().with_result (
-                [this, backlink, &res] (Snapper::VERSION version) {
-                  if (version != Version)
-                    {
-                      if (config.verbose)
-                        Genode::warning ("backlink has a wrong version: ",
-                                         backlink.value);
-                      res = InvalidVersion;
-                    }
-                  else
+        [&res, &dst, &size] (Archive::ArchiveEntry &entry) {
+          entry.queue.for_each (
+              [&res, &dst, &size] (Archive::Backlink &backlink) {
+                Genode::Byte_range_ptr dst_buf ((char *)dst, size);
+                switch (backlink.get_data (dst_buf))
+                  {
+                  case Archive::Backlink::Error::None:
                     res = Ok;
-                },
-                [this, backlink, &res] (Snapper::Archive::Backlink::Error) {
-                  if (config.verbose)
-                    Genode::warning ("could not access backlink's version: ",
-                                     backlink.value);
-                  res = InvalidVersion;
-                });
-
-            if (res != Ok)
-              return;
-
-            Snapper::CRC crc = 0;
-            backlink.get_integrity ().with_result (
-                [&crc] (Snapper::CRC _crc) { crc = _crc; },
-                [this, backlink, &res] (Snapper::Archive::Backlink::Error) {
-                  if (config.verbose)
-                    {
-                      Genode::warning ("could not access backlink's crc: ",
-                                       backlink.value);
-                    }
-                  res = IntegrityFailed;
-                });
-
-            if (res != Ok)
-              return;
-
-            Genode::Byte_range_ptr buf ((char *)dst, size);
-
-            if (backlink.get_data (buf) != Snapper::Archive::Backlink::None)
-              {
-                res = RestoreFailed;
-              }
-
-            if (crc32 (buf.start, buf.num_bytes) != crc)
-              {
-                if (config.verbose)
-                  Genode::warning (
-                      "backlink has an invalid CRC: ", backlink.value,
-                      "! Remove it to "
-                      "not receive this warning again.");
-
-                res = IntegrityFailed;
-                Genode::memset (buf.start, 0, buf.num_bytes);
-              }
-          });
+                    break;
+                  case Archive::Backlink::Error::InvalidVersion:
+                    res = InvalidVersion;
+                    break;
+                  case Archive::Backlink::Error::InvalidIntegrity:
+                    res = IntegrityFailed;
+                    break;
+                  case Archive::Backlink::Error::MissingFieldErr:
+                    res = IntegrityFailed;
+                    break;
+                  default:
+                    res = RestoreFailed;
+                    break;
+                  }
+              });
         },
         [&res] () { res = NoMatches; });
 
@@ -765,22 +686,21 @@ namespace Snapper
   Main::__remove_unfinished_gen (void)
   {
     Snapper::Result res = Ok;
-    
+
     snapper_root.for_each_entry ([this, &res] (Genode::Directory::Entry &e) {
-        Genode::Path<Vfs::MAX_PATH_LEN> archive
-          = Genode::Directory::join (e.name(), "archive");
+      Genode::Path<Vfs::MAX_PATH_LEN> archive
+          = Genode::Directory::join (e.name (), "archive");
 
-        if (! __valid_archive(archive)) {
-          snapper_root.unlink (e.name());
-          if (snapper_root.directory_exists (e.name()))
-              {
-                Genode::error ("could not remove old generation: ", e.name());
-                res = InitFailed;
-              }
+      if (!__valid_archive (archive))
+        {
+          snapper_root.unlink (e.name ());
+          if (snapper_root.directory_exists (e.name ()))
+            {
+              Genode::error ("could not remove old generation: ", e.name ());
+              res = InitFailed;
+            }
         }
-
     });
-
 
     if (config.verbose && res == Ok)
       Genode::log ("no unfinished generation remain.");
@@ -894,59 +814,7 @@ namespace Snapper
         Genode::Readonly_file archive_file (
             snapper_root, Genode::Directory::join (latest, "archive"));
 
-        Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION)
-                                       + sizeof (Snapper::CRC) };
-
-        char _num_backlinks_buf[sizeof (decltype (Archive::total_backlinks))];
-        Genode::Byte_range_ptr num_backlinks_buf (_num_backlinks_buf,
-                                                  sizeof (_num_backlinks_buf));
-
-        if (archive_file.read (pos, num_backlinks_buf) == 0)
-          {
-            Genode::error ("missing number of backlinks in the archive file "
-                           "of generation: ",
-                           latest);
-            throw CrashStates::INVALID_ARCHIVE_FILE;
-          }
-
-        pos.value += sizeof (decltype (Archive::total_backlinks));
-
-        decltype (Archive::total_backlinks) num_backlinks
-            = *(reinterpret_cast<decltype (Archive::total_backlinks) *> (
-                _num_backlinks_buf));
-
-        char _key_buf[sizeof (Archive::ArchiveKey)];
-        char _val_buf[sizeof (decltype (Archive::Backlink::value))];
-
-        Genode::Byte_range_ptr key_buf (_key_buf, sizeof (_key_buf));
-        Genode::Byte_range_ptr val_buf (_val_buf, sizeof (_val_buf));
-
-        for (decltype (Archive::total_backlinks) i = 0; i < num_backlinks; i++)
-          {
-            Genode::size_t bytes_read = archive_file.read (pos, key_buf);
-            if (bytes_read != key_buf.num_bytes)
-              {
-                Genode::error ("invalid archive file: invalid key size!");
-                throw CrashStates::INVALID_ARCHIVE_FILE;
-              }
-
-            pos.value += bytes_read;
-
-            bytes_read = archive_file.read (pos, val_buf);
-            if (bytes_read != val_buf.num_bytes)
-              {
-                Genode::error ("invalid archive file: invalid value size!");
-                throw CrashStates::INVALID_ARCHIVE_FILE;
-              }
-
-            pos.value += bytes_read;
-
-            Archive::ArchiveKey key
-                = *(reinterpret_cast<Archive::ArchiveKey *> (key_buf.start));
-
-            Genode::Cstring val_str (val_buf.start);
-            archiver->insert (key, val_str);
-          }
+        archiver->extract_from_archive_file (archive_file);
       }
     catch (Genode::File::Open_failed)
       {
