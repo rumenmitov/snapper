@@ -135,17 +135,6 @@ namespace Snapper
 
                       new_backlink_needed = true;
                     }
-                  else
-                    {
-                      if (backlink.set_reference_count (rc + 1).failed ())
-                        {
-                          Genode::error (
-                              "could not update reference count of: ",
-                              backlink.value, "! Creating new file instead.");
-
-                          new_backlink_needed = true;
-                        }
-                    }
                 },
                 [this, &entry,
                  &new_backlink_needed] (Snapper::Archive::Backlink::Error) {
