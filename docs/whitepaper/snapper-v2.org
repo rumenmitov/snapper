@@ -6,9 +6,9 @@
 #+LATEX: \clearpage
 
 * Introduction
-Snapper 2.0 (henceforth known as just Snapper) is a snapshot mechanism for the virtual memory space of the persistent operating system PhantomOS. It uses the a logging file system (e.g. ext4) to ensure that file operations (e.g. modification or deletion) are resistant to OS crashes mid-way through the operation.
+Snapper 2.0 (henceforth known as just Snapper) is a snapshot mechanism for capturing the state of a set of components (e.g. virtual memory pages). It uses the a logging file system (e.g. ext4) to ensure that file operations (e.g. modification or deletion) are resistant to OS crashes mid-way through the operation.
 
-A vital property of Snapper is that it needs to be disk space efficient in order not to bloat the file system. This is done by utilizing a mapping from the virtual pages (from now on referred only as pages) to a file containing their contents. Thus if a page remains unchanged its contents will still be mapped to a file from a previous snapshot, hence no new file needs to be created.
+A vital property of Snapper is that it needs to be disk space efficient in order not to bloat the file system. This is done by utilizing a mapping from the component identifier to a file containing the component's state at the time of the snapshot. Thus if a component's state remains unchanged the mapping will point to a file from a previous snapshot, hence no new file needs to be created.
 
 * The Problems Snapper Solves
 Snapper is trying to build upon previous attempts to create a snapshot mechanism for PhantomOS. Snapper is specifically designed for it to be able to be implemented in Genode[fn:1]. Here are the problems faced by previous snapshot mechanisms and how Snapper solves them:
@@ -19,14 +19,14 @@ Snapper only stores new data in its snapshots. If a page has not changed, its st
 ** Handling of Snapshot Files
 A previous idea to hold on to old, but still in-use, snapshot files was to use hardlinks. A hardlink would be created from the old snapshot directory to the current snapshot directory if a file had not changed.
 
-Unfortunately, Genode does not provide support for hardlinks[fn:2] and I was unsuccessful in patching hardlinks in. Snapper solves this by via a table that maps the pages to the path of the file currently containing their content. Additionally, a reference count will be kept for each file. This tracks how many generations (i.e. snapshots) require this file. Once the reference count reaches 0, the file will be deleted.
+Unfortunately, Genode does not provide support for hardlinks[fn:2] and I was unsuccessful in patching hardlinks in. Snapper solves this by via a table that maps the virtual pages to the path of the file currently containing their content. Additionally, a reference count will be kept for each file. This tracks how many generations (i.e. snapshots) require this file. Once the reference count reaches 0, the file will be deleted.
 
 ** File Integrity
 Snapper should be resilient towards filesystem failures (such as bad unmount) as it utilizes ext4 and thus utilities like _fsck_ can be used to recover the filesystem state.
 
-In addition to this, Snapper provides integrity checks for individual files in the form of a cyclic redundancy check (CRC). This is used to track whether or not the saved page contents have been modified before being recovered. See the [[#configuration][Configuration]]  section on how to control the policy for failed integrity checks.
+In addition to this, Snapper provides integrity checks for individual files in the form of a cyclic redundancy check (CRC). This is used to track whether or not the saved virtual page contents have been modified before being recovered. See the [[#configuration][Configuration]]  section on how to control the policy for failed integrity checks.
 
-Another use case of the CRC is that it provides a way to know when a new file needs to be created for a snapshot (i.e. when the page has changed since the last snapshot).
+Another use case of the CRC is that it provides a way to know when a new file needs to be created for a snapshot (i.e. when the virtual page has changed since the last snapshot).
 
 ** Redundancy
 The more redundancy there is between snapshots, the more robust the snapshot mechanism is. In order to achieve said redundancy, once a backing file has too many snapshots that depend on it (i.e. its reference count is greater or equal to ~Snapper::Config::redundancy~) Snapper will create a copy of the file and map all future snapshots with the copy and the original.
@@ -63,7 +63,7 @@ By configuring ~Snapper::Config::redundancy~, the system administrator can contr
 | Genode Compatibility |                         compatible                          |                       compatible                        |
 | Makes Use of Ext4    |                             n/a                             |           uses ext4's journaling capabilities           |
 
-While Superblock has a fair amount of redundancy, a system administrator does not have the same level of control as with Snapper 2.0. Once a superblock is created a copy of it is saved in another location on disk. In contrast, Snapper 2.0 supports multiple copies of the same file. The system administrator can decide how often these copies are made by setting the constant ~Snapper::Config::redundancy~.
+While Superblock has a fair amount of redundancy, a system administrator does not have the same level of control as with Snapper 2.0. Once a superblock is created a copy of it is saved in another location on disk. In contrast, Snapper 2.0 supports multiple copies of the same file. The system administrator can decide how often these copies are made by setting the constant =Snapper::Config::redundancy=.
 
 A limitation of the Superblock implementation is that it has no support for multiple generations of snapshots. The mechanism only keeps a superblock of the current system state along with a redundant copy of it. While this serves the primary use case for a snapshot (that being restoring the system state after a crash), it lacks the flexibility of Snapper 2.0 when it comes to multiple versions of the system.
 
@@ -114,16 +114,22 @@ As for the major pitfalls of Snapper 1.0, Snapper 2.0 uses an archive file for e
 * Definitions and Notations
 ** Snapper
 Snapper is the name of the snapshot mechanism.
+** Component
+A discretionary object with a state. The set of all components will henceforth be denoted by P.
+** Backlink
+A file path leading to a file that contains the data for a component in a given generation. A component may have multiple backlinks in a generation for redundancy. The set of all backlinks for a page in a given snapshot will be denoted by B.
+** Snapshot
+Structure that contains partial or complete information about the states of the components at a particular point in time.
 ** Generation
-A generation is a completed snapshot.
-** Virtual Pages
-The set of all virtual pages will be denoted by P.
+A generation is a completed snapshot, meaning it can restore the component space P.
+** Zombie
+A file with a reference count greater than one, which is not needed in any generation.
+** Dead Snapshot
+An invalid generation that contains backlinks, needed for other generations, and possibly zombie files.
 ** Snapshot Files
 The set of all files that contain data on the pages from different snapshots will be denoted by H.
-** Backlinks
-A file path leading to a file that contains the data for a page in a given generation. A page may have multiple backlinks in a generation for redundancy. The set of all backlinks for a page in a given snapshot will be denoted by B.
 ** Archiver
-A file within a generation that maps P \rightarrow B, if a page p_{i} has its current or past contents saved in a file h_{i} \in B.
+The mechanism that maps P \rightarrow B, if a component p_{i} has its current or past contents saved in a file h_{i} \in B.
 ** Snapper Root
 Denoted by _<snapper-root>_ it contains the directories which hold the information for the various snapshots. 
 ** Snapshot Root
@@ -177,7 +183,7 @@ A directory containing H' \sube H, where H' is the set of all snapshot files tha
 - ext := extender directory contains the next level of files
 
 ** The Archive File
-The archive file contains keeps track of which file is storing the contents of a given page in the current generation. The archive file is a key component of a generation. Without it, a generation is *invalid* (i.e. the system cannot recover the state of the generation). Note, that a generation can be invalid but still be needed for Snapper, as other generations might have a need of files contained within it.
+The archive file contains keeps track of which file is storing the contents of a given component in the current generation. The archive file is a key component of a generation. Without it, a generation is *invalid / dead* (i.e. the system cannot recover the state of the generation). Note, that a generation can be invalid but still be needed for Snapper, as other generations might have a need of files contained within it.
 
 The mapping itself is stored as a [[https://github.com/genodelabs/genode/blob/master/repos/base/include/util/dictionary.h][Genode dictionary]], with the key corresponding to the page number and value contents being a [[https://github.com/genodelabs/genode/blob/master/repos/base/include/util/fifo.h][Genode FIFO queue]] which stores the backlink file paths (relative to _<snapper-root>_).
 
@@ -185,15 +191,15 @@ For example:
 
 : Snapper::Archiver[i] = [ "/t_1/snapshot/ext/ext/00cd" ]
 
-stores the contents of page p_{i} in a file found in the generation t_{1}. Notice how the file path is relative to the _<snapper-root>_.
+stores the contents of component p_{i} in a file found in the generation t_{1}. Notice how the file path is relative to the _<snapper-root>_.
 
-Note that the mapping can include multiple backlinks, each of which is a redundant copy of the page's data. If one backlink is missing or has an invalid CRC, Snapper will try to recover the next backlink until it either succeeds or it runs out of backlinks.
+Note that the mapping can include multiple backlinks, each of which is a redundant copy of the component's data. If one backlink is missing or has an invalid CRC, Snapper will try to recover the next backlink until it either succeeds or it runs out of backlinks.
 
 An example of a mapping entry with multiple backlinks:
 
 : Snapper::Archiver[i] = [ "/t_1/snapshot/ext/ext/00cd", "/t_0/snapshot/ext/ext/0054" ]
 
-where the first file (base name of "00cd") is an identical copy of the second file (base name of "0054") and they are store the contents of page p_{i}.
+where the first file (base name of "00cd") is an identical copy of the second file (base name of "0054") and they are store the contents of component p_{i}.
 
 The above examples showcase how the backlinks are stored in memory during the lifetime of the ~Snapper~ object. When it comes to storing the backlinks in the actual archive file, the FIFO queue is expanded such that each backlink is written to the archive file as an individual mapping. Then, when Snapper reads the archive file, it aggregates all mappings with identical keys into a FIFO queue and that is what constitutes a ~Snapper::Archiver~ entry.
 
@@ -248,7 +254,7 @@ The structure of the snapshot file is as follows:
 The extender directory is used to reduce the load on the filesystem. Since performance can be impacted if too many files are in the same directory, after a certain number (~Snapper::Config::threshold~), a sub-directory will be created called _ext_ and subsequent snapshot files will be stored within it, instead of the current one. Important to note is that the incremental counter used to name the snapshot files resets within the extender directory.
 
 ** The Snapshot Directory
-This directory is organized as a radix trie containing all snapshot files of pages that have changed since the last generation. Files are added in the extender directories. The extender directories are removed if their last entity (file or sub-directory) gets removed.
+This directory is organized as a radix trie containing all snapshot files of components that have changed since the last generation. Files are added in the extender directories. The extender directories are removed if their last entity (file or sub-directory) gets removed.
 
 ** The Generation Directory
 The generation directory contains the archive file and the snapshot directory. The directory is uses an RTC timestamp as its name, which is generated at the time of the directory's creation.
@@ -259,17 +265,20 @@ The generation directory is removed when both the snapshot directory and the arc
 
 * The Snapper Mechanism
 ** Snapshot Step
-The rationale behind this step is to use a file (the archive file) to keep track of the snapshot file(s) (a.k.a backlinks) of the pages. This allows for a single source of truth. If the archive file is corrupted it must be replaced with a [[#backups][backup]] version of the file.
+:properties:
+:custom_id: snapshot-step
+:end:
+The rationale behind this step is to use a file (the archive file) to keep track of the snapshot file(s) (a.k.a backlinks) of the components. This allows for a single source of truth. If the archive file is corrupted it must be replaced with a [[#backups][backup]] version of the file.
 
 Each snapshot file must keep a reference count which keep track of the number of generations that need this file. Should the reference count exceed ~Snapper::Config::redundancy~ a new snapshot file will be created to store the data. Both the new file and the old file will be stored as backlinks for later snapshots.
 
-The snapshot process has been designed to allow the snapshot of individual pages to be done at an arbitrary time. For example, the user can snapshot the first n-pages, then do some computations, and then snapshot the rest of the pages. This is not recommended as the state could have changed for the first n-pages before the rest are saved in the snapshot, hence leading to an inconsistent system state. It is up to the user to determine if it is more desirable to "pause" the snapshot process, or do it all in one go.
+The snapshot process has been designed to allow the snapshot of individual components to be done at an arbitrary time. For example, the user can snapshot the first n-components, then do some computations, and then snapshot the rest of the components. This is not recommended as the state could have changed for the first n-components before the rest are saved in the snapshot, hence leading to an inconsistent system state. It is up to the user to determine if it is more desirable to "pause" the snapshot process, or do it all in one go.
 
-In order to support this flexibility, the Snapper initiate the snapshot procedure. Once this procedure is active the only Snapper operation allowed is the taking of snapshots (i.e. recovering and purging are disallowed). Once all pages have been captured in the snapshot, the generation will be committed and Snapper will be returned to its dormant state.
+In order to support this flexibility, the Snapper initiate the snapshot procedure. Once this procedure is active the only Snapper operation allowed is the taking of snapshots (i.e. recovering and purging are disallowed). Once all components have been captured in the snapshot, the generation will be committed and Snapper will be returned to its dormant state.
 
-In terms of performance, the taking of snapshots is cheap as it comprises a dictionary lookup, and in the worst case (the page's contents do not appear in a prior generation): a write to a file. The true cost comes when committing the generation. The ~Snapper::Archiver~ is written to the generation's archive file. Consequently, for each and every backlink present in ~Snapper::Archiver~, the backlink's reference count is incremented. This involves copy operations on all backlink files (Genode's VFS does not support writing in arbitrary locations in a file).
+In terms of performance, the taking of snapshots is cheap as it comprises a dictionary lookup, and in the worst case (the page's contents do not appear in a prior generation): a write to a file. The true cost comes when committing the generation. The ~Snapper::Archiver~ is written to the generation's archive file, which means iterating over all the entries.
 
-A possible way to avoid so many write operations at once, could be to increment the reference count when taking the snapshot of the pages. Unfortunately, that could lead to "zombie files" if the system crashes before the generation is committed (and the archive file is written). If no archive file has any mention of a snapshot file, then that file will never be deleted as its reference count falsely indicates that the file is still being needed.
+As an optimizations, reference counts are updated during the taking of the snapshot (as opposed to the commit step) in order to prevent opening all the files again at the commit stage. Unfortunately, this could lead to zombie files if the system crashes before the generation is committed (and the archive file is written). If no archive file has any mention of a snapshot file, then that file will never be deleted as its reference count falsely indicates that the file is still being needed. To clean up zombie file please refer to [[#purge-step-zombies][Purge Step (Zombies)]].
 
 1. If the _latest_ generation does not have a valid archive file, delete it (the generation is incomplete).
 2. Initialize a new generation directory with an RTC timestamp as the name.
@@ -286,7 +295,7 @@ A possible way to avoid so many write operations at once, could be to increment 
       2. Increment the reference count for all files in ~Snapper::Archiver[i]~.
       2. Enqueue /path(/ h_{j} /)/ to ~Snapper::Archiver[i]~.
    2. If the file h_{i} has a reference count lower than ~Snapper::Config::redundancy~, increment the reference count of it and all other redundant files in ~Snapper::Archiver[i]~.
-8. Save ~Snapper::Archiver~ into the archive file and calculate its CRC.
+8. Save ~Snapper::Archiver~ into the archive file and calculate the CRC of the entries.
 
 #+LATEX: \clearpage
 
@@ -329,11 +338,28 @@ The worst case of this approach would be that a snapshot file could be many sub-
    2. For each entry h \in ~Snapper::Archiver~ and for each file h_{i} \in h: decrement the file h_{i}'s reference count.
    3. Delete the archive file.
 
+
+** Purge Step (Zombies)
+:properties:
+:custom_id: purge-step-zombies
+:end:
+There is a possibility of files which are no longer in need by any generation (aka zombie files) to occur as a result of a system crash during the [[#snapshot-step][Snapshot Step]] or the [[#purge-step][Purge Step]] when the reference counts of files are updated. The system crash would create an inconsistency between the file reference count and the amount of generations that the file is needed by. By design, this inconsistency would always result in the file reference count being lower than the actual file references. Thus, when all the generations referencing the file have been purged, the file itself will not be purged as its reference count incorrectly states that it is still in need.
+
+To remove *all* zombie files from the system we use the following algorithm. Note that this algorithm is very slow (especially for large component sets and many snapshots) hence it should be used rarely. To achieve its effect run it *at most* once per [[#purge-step][Purge Step]] (the only time when zombies may appear).
+
+1. For each *dead snapshot*:
+   1. For each file:
+      1. Check if the file is needed in any of the generations (requires linear search).
+      2. If the file is needed by at least one, keep it.
+      3. Otherwise delete it.
+
 * Snapper's Time and Space Complexity
 The following complexity analysis uses the following assumptions:
-- let P be the set of all virtual pages, and let p = |P|
+- let P be the set of all components, and let p = |P|
 - let H be the set of all entries in the mapping stored in an archive file, and let h = |H|
 - let B be the set of all backlinks present in an archive file, and let b = |B|
+- let S be the set of all generations, and let s = |S|
+- let Z be the set of all files in dead snapshots, and let z = |Z|
 
   
 #+begin_quote
@@ -341,29 +367,32 @@ NOTE: Since Genode's Dictionary uses an AVL-tree, all Dictionary lookups are O(l
 #+end_quote
 
 #+ATTR_LATEX: :environment longtable :align l|c|c|p{4cm}
-| <l>                       |       <c>       |       <c>        | <l>                     |
-| Use-Case                  | Time Complexity | Space Complexity | Regularity              |
-|---------------------------+-----------------+------------------+-------------------------|
-| Begin snapshot procedure. |      O(1)       |       O(1)       | Determined by the       |
-|                           |                 |                  | configured policy.      |
-|---------------------------+-----------------+------------------+-------------------------|
-| Take a snapshot.          |    O(log(h))    |       O(1)       | Every time a page needs |
-|                           |                 |                  | needs to be backed-up.  |
-|---------------------------+-----------------+------------------+-------------------------|
-| Commit generation.        |      O(b)       |    O(b)[fn:4]    | When snapshot process   |
-|                           |                 |                  | is completed.           |
-|---------------------------+-----------------+------------------+-------------------------|
-| Begin recovery procedure. |      O(b)       |       O(b)       | When the system boots.  |
-|---------------------------+-----------------+------------------+-------------------------|
-| Recover a page.           |    O(log(h))    |       O(1)       | For each page that      |
-|                           |                 |                  | needs to be recovered.  |
-|---------------------------+-----------------+------------------+-------------------------|
-| Finish recovery.          |      O(1)       |       O(1)       | When all pages have     |
-|                           |                 |                  | been recovered.         |
-|---------------------------+-----------------+------------------+-------------------------|
-| Purge a generation.       |      O(b)       |       O(b)       | Determined by the       |
-|                           |                 |                  | configured policy.      |
-|---------------------------+-----------------+------------------+-------------------------|
+| <l>                       |       <c>       |       <c>        | <l>                          |
+| Use-Case                  | Time Complexity | Space Complexity | Regularity                   |
+|---------------------------+-----------------+------------------+------------------------------|
+| Begin snapshot procedure. |      O(1)       |       O(1)       | Determined by the            |
+|                           |                 |                  | configured policy.           |
+|---------------------------+-----------------+------------------+------------------------------|
+| Take a snapshot.          |    O(log(h))    |       O(1)       | Every time a component needs |
+|                           |                 |                  | needs to be backed-up.       |
+|---------------------------+-----------------+------------------+------------------------------|
+| Commit generation.        |      O(b)       |    O(b)[fn:4]    | When snapshot process        |
+|                           |                 |                  | is completed.                |
+|---------------------------+-----------------+------------------+------------------------------|
+| Begin recovery procedure. |      O(b)       |       O(b)       | When the system boots.       |
+|---------------------------+-----------------+------------------+------------------------------|
+| Recover a component.      |    O(log(h))    |       O(1)       | For each component that      |
+|                           |                 |                  | needs to be recovered.       |
+|---------------------------+-----------------+------------------+------------------------------|
+| Finish recovery.          |      O(1)       |       O(1)       | When all components have     |
+|                           |                 |                  | been recovered.              |
+|---------------------------+-----------------+------------------+------------------------------|
+| Purge a generation.       |      O(b)       |       O(b)       | Determined by the            |
+|                           |                 |                  | configured policy.           |
+|---------------------------+-----------------+------------------+------------------------------|
+| Purge zombies.            |  O(z * s * p)   |       O(1)       | At most once per purge.      |
+|                           |                 |                  |                              |
+|---------------------------+-----------------+------------------+------------------------------|
 
 #+LATEX: \clearpage
 
@@ -377,7 +406,7 @@ Insertion of new data during the snapshot procedure is relatively fast. All that
 :properties:
 :custom_id: redundancy
 :end:
-Snapper allows the set of the data redundancy by allowing a file to have redundant copies (i.e. backlinks) after its reference count meets or exceeds ~Snapper::Config::redundancy~. The archive file then links the virtual page to a comma separated list of files from older generations that store identical data. This redundancy comes at the cost of the following:
+Snapper allows the set of the data redundancy by allowing a file to have redundant copies (i.e. backlinks) after its reference count meets or exceeds ~Snapper::Config::redundancy~. The archive file then links the virtual component to a comma separated list of files from older generations that store identical data. This redundancy comes at the cost of the following:
 - slower insertions (due to additional string manipulations)
 - higher disk usage (due to archive entries having longer strings)
 
@@ -385,10 +414,10 @@ Snapper allows the set of the data redundancy by allowing a file to have redunda
 It is important to note, however, that these costs are minimal and furthermore there are no costs pertaining to recovering data, as the [[#recovery-step][Recovery Step]] tries to use the first file path provided by the archive entry. It accesses subsequent backlinks only if the first file was corrupted.
 
 ** Fast Recovery of Generations
-Recovery of entire generations comprises reading all files needed by the generation and loading the data into the address space. By using an array to keep track of where a page's file is located, Snapper can efficiently retrieve the data.
+Recovery of entire generations comprises reading all files needed by the generation and loading the data into the address space. By using an array to keep track of where a component's file is located, Snapper can efficiently retrieve the data.
 
 ** Manageable Directory Sizes
-Since each page on the address space needs a snapshot file, the performance would be be hampered severely if all those files in the same directory. By using a radix trie with a dynamic height, the files are distributed in a manageable way along the different directory levels, thus reducing the strain on the filesystem.
+Since each component on the address space needs a snapshot file, the performance would be be hampered severely if all those files in the same directory. By using a radix trie with a dynamic height, the files are distributed in a manageable way along the different directory levels, thus reducing the strain on the filesystem.
 
 ** File and Generation Integrity
 By utilizing CRC, Snapper can detect when a snapshot file or archive has been tampered with. The admin of the system can then decide what to do with that knowledge through configuration of the [[#configuration][policy]].
@@ -397,7 +426,7 @@ By utilizing CRC, Snapper can detect when a snapshot file or archive has been ta
 Snapshot files that are relevant for more than one generation are not duplicated. Instead, the archive file keeps track of which files are needed for the generation, even if some of those files could be from other generations. Each file's reference count makes sure that a file is not removed while it is still needed by a valid generation. Similarly, files and directories that are no longer needed can easily be identified and removed, ensuring that storage space remains uncluttered.
 
 ** Partial Snapshot Recovery
-A generation with a valid archive, can be indexed to load a particular version of a page without having to restore the entire system to that generation.
+A generation with a valid archive, can be indexed to load a particular version of a component without having to restore the entire system to that generation.
 
 * The Snapper Object
 :properties:
@@ -491,6 +520,19 @@ Provide a RTC timestamp as a string to delete a specific generation. By default 
 
 #+begin_src c++
   snapper.purge(); // OPTIONAL pass in specific generation
+#+end_src
+
+**** Purge expired generations
+
+The expiration for generations can be set in [[#configuration][Configuration]].
+
+#+begin_src c++
+  snapper.purge_expired();
+#+end_src
+
+**** Purge zombie files
+#+begin_src c++
+  snapper.purge_zombies();
 #+end_src
 
 * Snapper User Stories (i.e Using Snapper in Projects)
