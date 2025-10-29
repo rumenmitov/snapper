@@ -539,6 +539,32 @@ namespace Snapper
         });
   }
 
+  Result
+  Main::purge_zombies (void)
+  {
+    if (state != Dormant)
+      {
+        return InvalidState;
+      }
+
+    Result res = Ok;
+    state = Purge;
+
+    // for each dead snapshot run __purge_zombies helper.
+    snapper_root.for_each_entry ([&] (Genode::Directory::Entry &e) {
+      if (!__valid_archive (Genode::Directory::join (e.name (), "archive")))
+        {
+          __purge_zombies (e.name ());
+        }
+    });
+
+    if (config.verbose)
+      Genode::log("no zombies remain!");
+
+    state = Dormant;
+    return res;
+  }
+
   /*
    * HELPER FUNCTIONS
    */
@@ -947,4 +973,57 @@ namespace Snapper
       }
   }
 
+  void
+  Main::__purge_zombies (const Genode::String<Vfs::MAX_PATH_LEN> &dir)
+  {
+    Genode::Directory cur_dir (snapper_root, dir);
+
+    cur_dir.for_each_entry ([&] (Genode::Directory::Entry &entry) {
+      Genode::String<Vfs::MAX_PATH_LEN> entry_path (dir, "/", entry.name ());
+
+      // for each directory recurse
+      if (snapper_root.directory_exists (entry_path))
+        {
+          __purge_zombies (entry_path);
+        }
+
+      // for each file: check if file appears in valid generations
+      if (snapper_root.file_exists (entry_path))
+        {
+          bool is_needed = false;
+
+          // check each valid generation
+          snapper_root.for_each_entry ([&] (Genode::Directory::Entry &gen) {
+            if (__valid_archive (
+                    Genode::Directory::join (gen.name (), "archive")))
+              {
+                Genode::Directory gen_dir (snapper_root, gen.name ());
+                Genode::Readonly_file archive_file (gen_dir, "archive");
+
+                // check if backlink is present in a valid generation
+                if (Snapper::Archive::archive_file_contains_backlink (
+                        archive_file, entry_path))
+                  {
+                    is_needed = true;
+                  }
+              }
+
+            // INFO If the entry is needed in at least one other
+            // generation, we can stop the search.
+            if (is_needed)
+              return;
+          });
+
+          // delete the entry if it's not needed (i.e. it's a zombie)
+          if (!is_needed)
+            {
+              if (config.verbose)
+                {
+                  Genode::log ("removing zombie file", entry_path);
+                  __delete_upwards (entry_path.string ());
+                }
+            }
+        }
+    });
+  }
 } // namespace Snapper

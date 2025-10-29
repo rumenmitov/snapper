@@ -196,7 +196,8 @@ __for_each_pair_in_archive_file (const Genode::Readonly_file &archive_file,
   Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION)
                                  + sizeof (Snapper::CRC) };
 
-  char _num_backlinks_buf[sizeof (decltype (Snapper::Archive::total_backlinks))];
+  char _num_backlinks_buf[sizeof (
+      decltype (Snapper::Archive::total_backlinks))];
   Genode::Byte_range_ptr num_backlinks_buf (_num_backlinks_buf,
                                             sizeof (_num_backlinks_buf));
 
@@ -209,7 +210,7 @@ __for_each_pair_in_archive_file (const Genode::Readonly_file &archive_file,
   pos.value += sizeof (decltype (Snapper::Archive::total_backlinks));
 
   decltype (Snapper::Archive::total_backlinks) num_backlinks
-    = *(reinterpret_cast<decltype (Snapper::Archive::total_backlinks) *> (
+      = *(reinterpret_cast<decltype (Snapper::Archive::total_backlinks) *> (
           _num_backlinks_buf));
 
   char _key_buf[sizeof (Snapper::Archive::ArchiveKey)];
@@ -218,7 +219,8 @@ __for_each_pair_in_archive_file (const Genode::Readonly_file &archive_file,
   Genode::Byte_range_ptr key_buf (_key_buf, sizeof (_key_buf));
   Genode::Byte_range_ptr val_buf (_val_buf, sizeof (_val_buf));
 
-  for (decltype (Snapper::Archive::total_backlinks) i = 0; i < num_backlinks; i++)
+  for (decltype (Snapper::Archive::total_backlinks) i = 0; i < num_backlinks;
+       i++)
     {
       Genode::size_t bytes_read = archive_file.read (pos, key_buf);
       if (bytes_read != key_buf.num_bytes)
@@ -238,8 +240,8 @@ __for_each_pair_in_archive_file (const Genode::Readonly_file &archive_file,
 
       pos.value += bytes_read;
 
-      Snapper::Archive::ArchiveKey key
-        = *(reinterpret_cast<Snapper::Archive::ArchiveKey *> (key_buf.start));
+      Snapper::Archive::ArchiveKey key = *(
+          reinterpret_cast<Snapper::Archive::ArchiveKey *> (key_buf.start));
 
       Genode::Cstring val (val_buf.start);
       fn (key, val);
@@ -254,4 +256,59 @@ Snapper::Archive::extract_from_archive_file (
       archive_file,
       [this] (ArchiveKey key, const decltype (Archive::Backlink::value)
                                   & val) { insert (key, val); });
+}
+
+bool
+Snapper::Archive::archive_file_contains_backlink (
+    const Genode::Readonly_file &archive_file,
+    const decltype (Backlink::value) & search_val)
+{
+  Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION)
+                                 + sizeof (Snapper::CRC) };
+
+  char _num_backlinks_buf[sizeof (
+      decltype (Snapper::Archive::total_backlinks))];
+  Genode::Byte_range_ptr num_backlinks_buf (_num_backlinks_buf,
+                                            sizeof (_num_backlinks_buf));
+
+  if (archive_file.read (pos, num_backlinks_buf) == 0)
+    {
+      Genode::error ("missing number of backlinks in the archive file");
+      throw Snapper::CrashStates::INVALID_ARCHIVE_FILE;
+    }
+
+  pos.value += sizeof (decltype (Snapper::Archive::total_backlinks));
+
+  decltype (Snapper::Archive::total_backlinks) num_backlinks
+      = *(reinterpret_cast<decltype (Snapper::Archive::total_backlinks) *> (
+          _num_backlinks_buf));
+
+  char _val_buf[sizeof (decltype (Snapper::Archive::Backlink::value))];
+
+  Genode::Byte_range_ptr val_buf (_val_buf, sizeof (_val_buf));
+
+  for (decltype (Snapper::Archive::total_backlinks) i = 0; i < num_backlinks;
+       i++)
+    {
+      pos.value += sizeof (Snapper::Archive::ArchiveKey);
+
+      Genode::size_t bytes_read = archive_file.read (pos, val_buf);
+      if (bytes_read != val_buf.num_bytes)
+        {
+          Genode::error ("invalid archive file: invalid value size!");
+          throw Snapper::CrashStates::INVALID_ARCHIVE_FILE;
+        }
+
+      pos.value += bytes_read;
+
+      decltype (Snapper::Archive::Backlink::value)
+          val (Genode::Cstring (val_buf.start));
+
+      if (val == search_val)
+        {
+          return true;
+        }
+    }
+
+  return false;
 }

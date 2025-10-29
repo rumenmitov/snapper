@@ -78,6 +78,8 @@ struct Snapper::Session : Genode::Session
 
   virtual void purge_expired (void) = 0;
 
+  virtual Result purge_zombies (void) = 0;
+
   GENODE_RPC (Rpc_dataspace, Genode::Dataspace_capability, _dataspace);
 
   GENODE_RPC (Rpc_init_snapshot, Result, init_snapshot);
@@ -102,9 +104,11 @@ struct Snapper::Session : Genode::Session
 
   GENODE_RPC (Rpc_purge_expired, void, purge_expired);
 
+  GENODE_RPC (Rpc_purge_zombies, Result, purge_zombies);
+
   GENODE_RPC_INTERFACE (Rpc_dataspace, Rpc_init_snapshot, Rpc_take_snapshot,
                         Rpc_commit_snapshot, Rpc_open_generation, Rpc_restore,
-                        Rpc_close_generation, Rpc_purge, Rpc_purge_expired);
+                        Rpc_close_generation, Rpc_purge, Rpc_purge_expired, Rpc_purge_zombies);
 };
 
 struct Snapper::Session_component : Genode::Rpc_object<Session>
@@ -180,6 +184,12 @@ struct Snapper::Session_component : Genode::Rpc_object<Session>
   purge_expired (void) override
   {
     snapper.purge_expired ();
+  }
+
+  Result
+  purge_zombies (void) override
+  {
+    return snapper.purge_zombies ();
   }
 };
 // TODO Update the Root component code to the newer Genode API when it

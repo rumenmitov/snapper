@@ -117,6 +117,12 @@ public:
   {
     call<Rpc_purge_expired> ();
   }
+
+  Result
+  purge_zombies (void) override
+  {
+    return call<Rpc_purge_zombies> ();
+  }
 };
 
 #endif // __SNAPPER_SESSION_CLIENT_H

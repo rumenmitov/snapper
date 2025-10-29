@@ -111,6 +111,14 @@ test_snapshot_purge (Snapper::Connection &snapper)
 }
 
 void
+test_snapshot_purge_zombies (Snapper::Connection &snapper)
+{
+  bool ok = snapper.purge_zombies () == Snapper::Ok;
+
+  TEST (ok);
+}
+
+void
 Component::construct (Genode::Env &env)
 {
   Snapper::Connection snapper (env);
@@ -121,6 +129,7 @@ Component::construct (Genode::Env &env)
   test_snapshot_creation (snapper); // test linking with identical snapshot
   test_successful_recovery (snapper);
   test_snapshot_purge (snapper);
+  test_snapshot_purge_zombies (snapper);
   test_snapshot_purge (snapper);
 
   summary ();

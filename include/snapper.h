@@ -252,6 +252,15 @@ namespace Snapper
      * @throws Snapper::CrashStates
      */
     void extract_from_archive_file (const Genode::Readonly_file &);
+
+    /**
+     * @brief Returns true if a backlink value is contained in the
+     * archive file.
+     * @throws Snapper::CrashStates
+     */
+    static bool
+    archive_file_contains_backlink (const Genode::Readonly_file &,
+                                    const decltype (Backlink::value) &);
   };
 
   class Main : Genode::Noncopyable
@@ -313,6 +322,13 @@ namespace Snapper
      * @brief Purges expired generations.
      */
     void purge_expired (void);
+
+    /**
+     * @brief Scans all "dead" snapshots (i.e. generations without a
+     * valid archive file) and checks that each file is needed by a
+     * still-valid generation.
+     */
+    Result purge_zombies (void);
 
     Genode::Attached_rom_dataspace rom;
 
@@ -398,6 +414,12 @@ namespace Snapper
      *        until <snapper-root>.
      */
     void __delete_upwards (const char *);
+
+    /**
+     * @brief Helper function to recursively delete all zombie files in
+     * a directory.
+     */
+    void __purge_zombies (const Genode::String<Vfs::MAX_PATH_LEN> &dir);
   };
 
 } // namespace Snapper
