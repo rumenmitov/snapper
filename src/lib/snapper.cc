@@ -135,6 +135,16 @@ namespace Snapper
 
                       new_backlink_needed = true;
                     }
+                  else
+                    {
+                      if (backlink.set_reference_count (rc + 1).failed ())
+                        {
+                          Genode::error ("failed to update reference count of "
+                                         "backlink! Creating a new backlink.");
+
+                          new_backlink_needed = true;
+                        }
+                    }
                 },
                 [this, &entry,
                  &new_backlink_needed] (Snapper::Archive::Backlink::Error) {
@@ -193,12 +203,7 @@ namespace Snapper
         Genode::memcpy (buf + sizeof (Snapper::VERSION), (char *)&crc,
                         sizeof (Snapper::CRC));
 
-        /* INFO
-         The reference count will be incremented when the full
-         snapshot is committed. It starts at 0, because the snapshot
-         file is currently not referenced by any archive file.
-        */
-        Snapper::RC reference_count = 0;
+        Snapper::RC reference_count = 1;
         Genode::memcpy (buf + sizeof (Snapper::VERSION)
                             + sizeof (Snapper::CRC),
                         (char *)&reference_count, sizeof (Snapper::RC));
@@ -256,8 +261,6 @@ namespace Snapper
       }
 
     archiver->commit (*generation);
-
-    __update_references ();
 
     if (config.verbose)
       Genode::log ("generation committed successfully!");
@@ -559,7 +562,7 @@ namespace Snapper
     });
 
     if (config.verbose)
-      Genode::log("no zombies remain!");
+      Genode::log ("no zombies remain!");
 
     state = Dormant;
     return res;
