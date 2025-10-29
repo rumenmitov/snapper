@@ -294,8 +294,6 @@ namespace Snapper
         goto CLEAN_RET;
       }
 
-    // archive.snapper.snapper_root.unlink (value);
-
     try
       {
         // INFO Genode::Append_file overwrites the file contents.
@@ -325,7 +323,7 @@ namespace Snapper
 
         heap.free (_buf, _buf_size);
 
-        if (write_res != Genode::New_file::Append_result::OK)
+        if (write_res != Genode::Append_file::Append_result::OK)
           {
             res = Genode::Attempt<Snapper::RC,
                                   Snapper::Archive::Backlink::Error> (
@@ -334,7 +332,7 @@ namespace Snapper
             goto CLEAN_RET;
           }
       }
-    catch (Genode::New_file::Create_failed)
+    catch (Genode::Append_file::Create_failed)
       {
         res = Genode::Attempt<Snapper::RC, Snapper::Archive::Backlink::Error> (
             OpenErr);
