@@ -51,6 +51,8 @@ namespace Snapper
         = rom.xml ().attribute_value<decltype (Snapper::Config::expiration)> (
             "expiration", Snapper::Config::_expiration);
 
+    archiver->verbose = config.verbose;
+
     static Snapper::Root_component root (env, env.ep (), heap, *this);
     env.parent ().announce (env.ep ().manage (root));
   }
