@@ -19,7 +19,7 @@ namespace Snapper
         timer (env), config (),
         generation (static_cast<Vfs::Simple_env &> (snapper_root)),
         snapshot (static_cast<Vfs::Simple_env &> (snapper_root)),
-        snapshot_dir_path ("/"), archiver (*this)
+        snapshot_dir_path ("/"), archiver (heap, snapper_root, config.verbose)
   {
     config.verbose
         = rom.xml ().attribute_value<decltype (Snapper::Config::verbose)> (
@@ -797,7 +797,7 @@ namespace Snapper
             Genode::log ("loading generation: ", latest);
           }
 
-        archiver.construct (*this);
+        archiver.construct (heap, snapper_root, config.verbose);
 
         // INFO Load the latest valid generation.
         Genode::Readonly_file archive_file (

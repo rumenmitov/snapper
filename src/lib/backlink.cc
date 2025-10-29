@@ -15,7 +15,7 @@ namespace Snapper
 
     try
       {
-        Genode::Readonly_file reader (archive.snapper.snapper_root, value);
+        Genode::Readonly_file reader (snapper_root, value);
         Genode::Readonly_file::At pos{ 0 };
 
         char _version_buf[sizeof (Snapper::VERSION)];
@@ -50,7 +50,7 @@ namespace Snapper
 
     try
       {
-        Genode::Readonly_file reader (archive.snapper.snapper_root, value);
+        Genode::Readonly_file reader (snapper_root, value);
         Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION) };
 
         char _crc_buf[sizeof (Snapper::CRC)];
@@ -84,7 +84,7 @@ namespace Snapper
 
     try
       {
-        Genode::Readonly_file reader (archive.snapper.snapper_root, value);
+        Genode::Readonly_file reader (snapper_root, value);
         Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION)
                                        + sizeof (Snapper::CRC) };
 
@@ -119,7 +119,7 @@ namespace Snapper
 
     try
       {
-        fsize = archive.snapper.snapper_root.file_size (value);
+        fsize = snapper_root.file_size (value);
       }
     catch (Genode::Directory::Nonexistent_file)
       {
@@ -149,14 +149,14 @@ namespace Snapper
         [&] (Snapper::VERSION ver) {
           if (ver != Snapper::Version)
             {
-              if (archive.snapper.config.verbose)
+              if (verbose)
                 Genode::warning ("backlink has a wrong version: ", value);
 
               err = InvalidVersion;
             }
         },
         [&] (auto) {
-          if (archive.snapper.config.verbose)
+          if (verbose)
             Genode::warning ("could not access backlink's version: ", value);
 
           err = InvalidVersion;
@@ -168,7 +168,7 @@ namespace Snapper
     get_integrity ().with_result (
         [&] (Snapper::CRC _crc) { crc = _crc; },
         [&] (Snapper::Archive::Backlink::Error) {
-          if (archive.snapper.config.verbose)
+          if (verbose)
             {
               Genode::warning ("could not access backlink's crc: ", value,
                                "! Remove it to "
@@ -200,7 +200,7 @@ namespace Snapper
 
     try
       {
-        Genode::Readonly_file reader (archive.snapper.snapper_root, value);
+        Genode::Readonly_file reader (snapper_root, value);
         Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION)
                                        + sizeof (Snapper::CRC)
                                        + sizeof (Snapper::RC) };
@@ -219,7 +219,7 @@ namespace Snapper
 
     if (crc32 (data.start, data.num_bytes) != crc)
       {
-        if (archive.snapper.config.verbose)
+        if (verbose)
           Genode::warning ("backlink has an invalid CRC: ", value,
                            "! Remove it to "
                            "not receive this warning again.");
@@ -282,7 +282,7 @@ namespace Snapper
         return res;
       }
 
-    char *_data_buf = (char *)archive.snapper.heap.alloc (data_size);
+    char *_data_buf = (char *)heap.alloc (data_size);
     Genode::Byte_range_ptr data (_data_buf, data_size);
 
     Snapper::Archive::Backlink::Error err = get_data (data);
@@ -294,17 +294,18 @@ namespace Snapper
         goto CLEAN_RET;
       }
 
-    archive.snapper.snapper_root.unlink (value);
+    // archive.snapper.snapper_root.unlink (value);
 
     try
       {
-        Genode::New_file writer (archive.snapper.snapper_root, value);
+        // INFO Genode::Append_file overwrites the file contents.
+        Genode::Append_file writer (snapper_root, value);
 
         Genode::size_t _buf_size = sizeof (Snapper::VERSION)
                                    + sizeof (Snapper::CRC)
                                    + sizeof (Snapper::RC) + data.num_bytes;
 
-        char *_buf = new (archive.snapper.heap) char[_buf_size];
+        char *_buf = new (heap) char[_buf_size];
 
         Genode::memcpy (_buf, (char *)&version, sizeof (Snapper::VERSION));
 
@@ -322,7 +323,7 @@ namespace Snapper
         Genode::New_file::Append_result write_res
             = writer.append (_buf, _buf_size);
 
-        archive.snapper.heap.free (_buf, _buf_size);
+        heap.free (_buf, _buf_size);
 
         if (write_res != Genode::New_file::Append_result::OK)
           {
@@ -343,7 +344,7 @@ namespace Snapper
 
   CLEAN_RET:
     if (data.start)
-      archive.snapper.heap.free (data.start, data.num_bytes);
+      heap.free (data.start, data.num_bytes);
 
     if (res == WriteErr)
       {
@@ -362,7 +363,7 @@ namespace Snapper
         [&] (Snapper::VERSION version) {
           if (version != Version)
             {
-              if (archive.snapper.config.verbose)
+              if (verbose)
                 Genode::log ("backlink has a version mismatch: ", value,
                              ". Creating a new snapshot file.");
 
@@ -380,7 +381,7 @@ namespace Snapper
         [&] (Snapper::CRC file_crc) {
           if (file_crc != crc)
             {
-              if (archive.snapper.config.verbose)
+              if (verbose)
                 Genode::log ("backlink has a mismatching crc: ", value,
                              ". Creating new snapshot file.");
 

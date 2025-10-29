@@ -123,13 +123,20 @@ namespace Snapper
     struct Backlink : Genode::Fifo<Backlink>::Element
     {
       Genode::String<Vfs::MAX_PATH_LEN> value;
+
+      // INFO The backlink is allocated by the Archive's allocator,
+      // hence we need to store the pointer somewhere for later deallocation.
       Backlink *_self;
-      Archive &archive;
+
+      Genode::Heap &heap;
+      Genode::Directory &snapper_root;
+      bool verbose;
 
       Backlink () = delete;
-      Backlink (Archive &archive,
-                const Genode::String<Vfs::MAX_PATH_LEN> &value)
-          : value (value), _self (nullptr), archive (archive)
+      Backlink (Genode::Heap &heap, Genode::Directory &snapper_root,
+                bool verbose, const Genode::String<Vfs::MAX_PATH_LEN> &value)
+          : value (value), _self (nullptr), heap (heap),
+            snapper_root (snapper_root), verbose (verbose)
       {
       }
 
@@ -208,12 +215,16 @@ namespace Snapper
      * mappings.
      * @throws Genode::Create_failed
      */
-    Archive (Main &);
+    Archive (Genode::Heap &, Genode::Directory &, bool);
 
     ~Archive ();
 
     ArchiveContainer archive;
-    Main &snapper;
+
+    Genode::Heap &heap;
+    Genode::Directory &snapper_root;
+    bool verbose;
+
     Genode::uint64_t total_backlinks = 0;
 
     /**

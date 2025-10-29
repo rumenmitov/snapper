@@ -9,8 +9,9 @@
 namespace Snapper
 {
 
-  Snapper::Archive::Archive (Snapper::Main &snapper)
-      : archive (), snapper (snapper)
+  Snapper::Archive::Archive (Genode::Heap &heap,
+                             Genode::Directory &snapper_root, bool verbose)
+      : archive (), heap (heap), snapper_root (snapper_root), verbose (verbose)
   {
   }
 
@@ -35,7 +36,7 @@ namespace Snapper
                             const Genode::String<Vfs::MAX_PATH_LEN> &val)
   {
     Snapper::Archive::Backlink *backlink
-        = new (snapper.heap) Archive::Backlink (*this, val);
+        = new (heap) Archive::Backlink (heap, snapper_root, verbose, val);
 
     backlink->_self = backlink;
 
@@ -46,7 +47,7 @@ namespace Snapper
         },
         [this, key, backlink] () {
           Archive::ArchiveEntry *entry
-              = new (snapper.heap) Archive::ArchiveEntry (key, archive);
+              = new (heap) Archive::ArchiveEntry (key, archive);
 
           entry->_self = entry;
 
@@ -55,7 +56,7 @@ namespace Snapper
 
     total_backlinks++;
 
-    if (snapper.config.verbose)
+    if (verbose)
       {
         Genode::log ("archive entry inserted: ", key, " -> \"",
                      backlink->value, "\"");
@@ -86,7 +87,7 @@ namespace Snapper
 
         const Genode::size_t archive_data_size
             = total_backlinks * kv_pair_size;
-        char *archive_data_buf = new (snapper.heap) char[archive_data_size];
+        char *archive_data_buf = new (heap) char[archive_data_size];
 
         Genode::uint64_t idx = 0;
 
@@ -108,7 +109,7 @@ namespace Snapper
             = sizeof (Snapper::VERSION) + sizeof (Snapper::CRC)
               + sizeof (decltype (total_backlinks)) + archive_data_size;
 
-        char *archive_buf = new (snapper.heap) char[archive_buf_size];
+        char *archive_buf = new (heap) char[archive_buf_size];
 
         Snapper::VERSION ver = Version;
         Snapper::CRC crc = crc32 (archive_data_buf, archive_data_size);
@@ -127,12 +128,12 @@ namespace Snapper
                             + sizeof (decltype (total_backlinks)),
                         archive_data_buf, archive_data_size);
 
-        snapper.heap.free (archive_data_buf, archive_data_size);
+        heap.free (archive_data_buf, archive_data_size);
 
         Genode::New_file::Append_result res
             = archive_file.append (archive_buf, archive_buf_size);
 
-        snapper.heap.free (archive_buf, archive_buf_size);
+        heap.free (archive_buf, archive_buf_size);
 
         if (res != Genode::New_file::Append_result::OK)
           {
@@ -170,19 +171,19 @@ namespace Snapper
         [this] (Archive::ArchiveEntry &entry) {
           entry.queue.for_each ([this] (Archive::Backlink &backlink) {
             total_backlinks--;
-            Genode::destroy (snapper.heap, backlink._self);
+            Genode::destroy (heap, backlink._self);
           });
 
-          Genode::destroy (snapper.heap, entry._self);
+          Genode::destroy (heap, entry._self);
         },
-        [key, this] () {
-          if (snapper.config.verbose)
+        [this, key] () {
+          if (verbose)
             {
               Genode::warning ("no such key exists in archive: ", key);
             }
         });
 
-    if (snapper.config.verbose)
+    if (verbose)
       {
         Genode::log ("archive entry removed: ", key);
       }
@@ -241,7 +242,7 @@ namespace Snapper
             = *(reinterpret_cast<Archive::ArchiveKey *> (key_buf.start));
 
         Genode::Cstring val (val_buf.start);
-        insert(key, val);
+        insert (key, val);
       }
   }
 }
