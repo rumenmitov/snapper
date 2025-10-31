@@ -105,64 +105,68 @@ namespace Snapper
     archiver->archive.with_element (
         identifier,
         [this, &new_backlink_needed, &crc] (Archive::ArchiveEntry &entry) {
-          /* INFO
-             Only need to check the latest backlink as it is assumed
-             that all backlinks in the queue store the same data as
-             part of the redundant policy.
-           */
-          entry.queue.head ([this, &entry, &new_backlink_needed,
-                             &crc] (Archive::Backlink &backlink) {
-            if (!backlink.is_backlink_valid (crc))
-              {
-                // INFO Remove all the previous backlinks since they
-                // no longer correspond to the data.
+          // INFO Go through backlinks until a valid one is found.
+          Archive::Backlink *valid_backlink = nullptr;
+          while (!valid_backlink)
+            {
+              entry.queue.head ([&] (Archive::Backlink &backlink) {
+                if (backlink.is_backlink_valid (crc))
+                  {
+                    valid_backlink = backlink._self;
+                  }
+                else
+                  {
+                    entry.queue.dequeue ([this] (Archive::Backlink &backlink) {
+                      if (config.verbose)
+                        Genode::log ("destroying invalid backlink!");
+
+                      Genode::destroy (heap, backlink._self);
+                    });
+                  }
+              });
+            }
+
+          if (!valid_backlink)
+            {
+              new_backlink_needed = true;
+              return;
+            }
+
+          valid_backlink->get_reference_count ().with_result (
+              [this, &new_backlink_needed, &valid_backlink] (Snapper::RC rc) {
+                if (rc >= config.redundancy)
+                  {
+                    if (config.verbose)
+                      Genode::log ("backlink reference count exceeded: ",
+                                   valid_backlink->value,
+                                   ". Creating redundant copy.");
+
+                    new_backlink_needed = true;
+                  }
+                else
+                  {
+                    if (valid_backlink->set_reference_count (rc + 1).failed ())
+                      {
+                        Genode::error ("failed to update reference count of "
+                                       "backlink! Creating a new backlink.");
+
+                        new_backlink_needed = true;
+                      }
+                  }
+              },
+              [this, &entry,
+               &new_backlink_needed] (Snapper::Archive::Backlink::Error) {
+                new_backlink_needed = true;
+
                 while (!entry.queue.empty ())
                   {
                     entry.queue.dequeue ([this] (Archive::Backlink &backlink) {
                       Genode::destroy (heap, backlink._self);
                     });
                   }
-
-                return;
-              }
-
-            backlink.get_reference_count ().with_result (
-                [this, &backlink, &new_backlink_needed] (Snapper::RC rc) {
-                  if (rc >= config.redundancy)
-                    {
-                      if (config.verbose)
-                        Genode::log ("backlink reference count exceeded: ",
-                                     backlink.value,
-                                     ". Creating redundant copy.");
-
-                      new_backlink_needed = true;
-                    }
-                  else
-                    {
-                      if (backlink.set_reference_count (rc + 1).failed ())
-                        {
-                          Genode::error ("failed to update reference count of "
-                                         "backlink! Creating a new backlink.");
-
-                          new_backlink_needed = true;
-                        }
-                    }
-                },
-                [this, &entry,
-                 &new_backlink_needed] (Snapper::Archive::Backlink::Error) {
-                  new_backlink_needed = true;
-
-                  while (!entry.queue.empty ())
-                    {
-                      entry.queue.dequeue (
-                          [this] (Archive::Backlink &backlink) {
-                            Genode::destroy (heap, backlink._self);
-                          });
-                    }
-                });
-          });
+              });
         },
-        [&new_backlink_needed] () { new_backlink_needed = true; });
+        [&] () { new_backlink_needed = true; });
 
     if (!new_backlink_needed)
       return Ok;
