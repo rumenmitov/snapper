@@ -107,7 +107,7 @@ namespace Snapper
         [this, &new_backlink_needed, &crc] (Archive::ArchiveEntry &entry) {
           // INFO Go through backlinks until a valid one is found.
           Archive::Backlink *valid_backlink = nullptr;
-          while (!valid_backlink || entry.queue.empty())
+          while (!valid_backlink && !entry.queue.empty())
             {
               entry.queue.head ([&] (Archive::Backlink &backlink) {
                 if (backlink.is_backlink_valid (crc))
