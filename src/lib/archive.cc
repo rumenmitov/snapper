@@ -91,6 +91,9 @@ Snapper::Archive::commit (Genode::Directory &dir,
                          &idx] (const Archive::ArchiveEntry &entry) {
         entry.queue.for_each ([archive_data_buf, &idx,
                                &entry] (const Archive::Backlink &backlink) {
+          if (backlink.outdated)
+            return;
+
           Genode::memcpy (archive_data_buf + (idx * kv_pair_size), &entry.name,
                           key_size);
 

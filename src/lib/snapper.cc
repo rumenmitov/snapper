@@ -106,46 +106,44 @@ namespace Snapper
         identifier,
         [this, &new_backlink_needed, &crc] (Archive::ArchiveEntry &entry) {
           // INFO Go through backlinks until a valid one is found.
-          Archive::Backlink *valid_backlink = nullptr;
-          while (!valid_backlink && !entry.queue.empty())
-            {
-              entry.queue.head ([&] (Archive::Backlink &backlink) {
-                if (backlink.is_backlink_valid (crc))
-                  {
-                    valid_backlink = backlink._self;
-                  }
-                else
-                  {
-                    entry.queue.dequeue ([this] (Archive::Backlink &backlink) {
-                      if (config.verbose)
-                        Genode::log ("removing invalid backlink: ", backlink.value);
+          Archive::Backlink *latest_valid_backlink = nullptr;
+          entry.queue.for_each ([&] (Archive::Backlink &backlink) {
+            if (backlink.is_backlink_valid (crc))
+              {
+                latest_valid_backlink = backlink._self;
+              }
+            else
+              {
 
-                      Genode::destroy (heap, backlink._self);
-                    });
-                  }
-              });
-            }
+                // INFO No need to remove invalid backlinks, we just won't
+                // write them in the archive file.
+                backlink.outdated = true;
+                archiver->total_backlinks--;
+              }
+          });
 
-          if (!valid_backlink)
+          if (!latest_valid_backlink)
             {
               new_backlink_needed = true;
               return;
             }
 
-          valid_backlink->get_reference_count ().with_result (
-              [this, &new_backlink_needed, &valid_backlink] (Snapper::RC rc) {
+          latest_valid_backlink->get_reference_count ().with_result (
+              [this, &new_backlink_needed,
+               &latest_valid_backlink] (Snapper::RC rc) {
                 if (rc >= config.redundancy)
                   {
                     if (config.verbose)
                       Genode::log ("backlink reference count exceeded: ",
-                                   valid_backlink->value,
+                                   latest_valid_backlink->value,
                                    ". Creating redundant copy.");
 
                     new_backlink_needed = true;
                   }
                 else
                   {
-                    if (valid_backlink->set_reference_count (rc + 1).failed ())
+                    if (latest_valid_backlink->set_reference_count (rc + 1)
+                            .failed ())
                       {
                         Genode::error ("failed to update reference count of "
                                        "backlink! Creating a new backlink.");
@@ -154,16 +152,10 @@ namespace Snapper
                       }
                   }
               },
-              [this, &entry,
-               &new_backlink_needed] (Snapper::Archive::Backlink::Error) {
+              [&new_backlink_needed] (Snapper::Archive::Backlink::Error) {
+                // INFO Technically, this code should not be reachable
+                // since we already checked that the backlink is valid.
                 new_backlink_needed = true;
-
-                while (!entry.queue.empty ())
-                  {
-                    entry.queue.dequeue ([this] (Archive::Backlink &backlink) {
-                      Genode::destroy (heap, backlink._self);
-                    });
-                  }
               });
         },
         [&] () { new_backlink_needed = true; });
