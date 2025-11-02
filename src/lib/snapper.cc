@@ -379,25 +379,30 @@ namespace Snapper
         return PurgeDenied;
       }
 
-    state = Purge;
-    Snapper::Result res = Ok;
-
     Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> _gen
         = generation;
 
+    bool validity_verified = false;
+
     if (_gen == "")
       {
-        snapper_root.for_each_entry (
-            [this, &_gen] (Genode::Directory::Entry &e) {
-              if (_gen == "" || _gen > e.name ())
+        snapper_root.for_each_entry ([this, &validity_verified, &_gen] (
+                                         Genode::Directory::Entry &entry) {
+          if (__valid_archive (
+                  Genode::Directory::join (entry.name (), "archive")))
+            {
+              if (_gen == "")
                 {
-                  if (__valid_archive (
-                          Genode::Directory::join (e.name (), "archive")))
-                    {
-                      _gen = e.name ();
-                    }
+                  _gen = entry.name ();
                 }
-            });
+              else if (_gen > entry.name ())
+                {
+                  _gen = entry.name ();
+                }
+
+              validity_verified = true;
+            }
+        });
       }
 
     if (_gen == "")
@@ -405,74 +410,88 @@ namespace Snapper
         if (config.verbose)
           Genode::log ("no generation exists for purging");
 
-        goto CLEAN_RET;
+        return NoPriorGen;
       }
 
-    res = __load_gen (_gen);
-    if (res == LoadGenFailed)
-      goto CLEAN_RET;
-
-    while (true)
+    if (!validity_verified)
       {
-        bool has_element = archiver->archive.with_any_element (
-            [this] (const Archive::ArchiveEntry &entry) {
-              // decrement each backlink's reference count
-              entry.queue.for_each ([this] (Archive::Backlink &backlink) {
-                bool remove = false;
-
-                backlink.get_reference_count ().with_result (
-                    [&backlink, &remove, this] (Snapper::RC reference_count) {
-                      reference_count--;
-
-                      // if the reference count is 0 or less, remove the
-                      // backlink
-                      if (reference_count > 0)
-                        {
-                          if (backlink.set_reference_count (reference_count)
-                                  .failed ())
-                            {
-                              if (config.integrity)
-                                {
-                                  Genode::error ("failed to set reference "
-                                                 "count of backlink");
-                                  throw CrashStates::REF_COUNT_FAILED;
-                                }
-
-                              remove = true;
-                            }
-                        }
-                      else
-                        remove = true;
-                    },
-                    [&remove, this] (Archive::Backlink::Error) {
-                      if (config.integrity)
-                        {
-                          Genode::error ("failed to set reference "
-                                         "count of backlink");
-                          throw CrashStates::REF_COUNT_FAILED;
-                        }
-
-                      remove = true;
-                    });
-
-                if (remove)
-                  __delete_upwards (backlink.value.string ());
-
-                /* INFO
-                 * No need to dequeue the Backlink as the entire ArchiveEntry
-                 * will be removed.
-                 */
-              });
-              archiver->remove (entry.name);
-            });
-
-        if (!has_element)
+        if (!__valid_archive (Genode::Directory::join (_gen, "archive")))
           {
-            break;
+            if (config.verbose)
+              Genode::log ("no generation exists for purging");
+
+            return NoPriorGen;
           }
       }
-    __delete_upwards (Genode::Directory::join (_gen, "archive").string ());
-    __reset_gen ();
+
+    state = Purge;
+    Snapper::Result res = Ok;
+
+    try
+      {
+        Genode::Directory archive_dir (snapper_root, _gen);
+        Genode::Readonly_file archive_file (archive_dir, "archive");
+
+        Archive archiver_to_purge (heap, snapper_root, config.verbose);
+        archiver_to_purge.extract_from_archive_file (archive_file);
+
+        while (true)
+          {
+            bool has_element = archiver_to_purge.archive.with_any_element (
+                [this,
+                 &archiver_to_purge] (const Archive::ArchiveEntry &entry) {
+                  // decrement each backlink's reference count
+                  entry.queue.for_each ([this] (Archive::Backlink &backlink) {
+                    bool remove = false;
+
+                    backlink.get_reference_count ().with_result (
+                        [&backlink, &remove] (Snapper::RC reference_count) {
+                          reference_count--;
+
+                          // if the reference count is 0 or less, remove the
+                          // backlink
+                          if (reference_count > 0)
+                            {
+                              if (backlink
+                                      .set_reference_count (reference_count)
+                                      .failed ())
+                                {
+                                  remove = true;
+                                }
+                            }
+                          else
+                            remove = true;
+                        },
+                        [&remove, this] (Archive::Backlink::Error) {
+                          if (config.integrity)
+                            remove = true;
+                        });
+
+                    if (remove)
+                      __delete_upwards (backlink.value.string ());
+
+                    /* INFO
+                     * No need to dequeue the Backlink as the entire
+                     * ArchiveEntry will be removed.
+                     */
+                  });
+                  archiver_to_purge.remove (entry.name);
+                });
+
+            if (!has_element)
+              {
+                break;
+              }
+          }
+        __delete_upwards (Genode::Directory::join (_gen, "archive").string ());
+        __reset_gen ();
+      }
+    catch (Genode::Readonly_file::Open_failed)
+      {
+        Genode::warning ("generation was already purged. If you want to "
+                         "cleanup any zombie files run purge_zombies()!");
+        goto CLEAN_RET;
+      }
 
     if (config.verbose)
       Genode::log ("purged: \"", _gen, "\"");
@@ -793,15 +812,18 @@ namespace Snapper
       {
         snapper_root.for_each_entry ([this, &validity_verified, &latest] (
                                          Genode::Directory::Entry &entry) {
-          if (latest == "" || entry.name () > latest)
+          if (__valid_archive (
+                  Genode::Directory::join (entry.name (), "archive")))
             {
-              latest = entry.name ();
-              if (__valid_archive (
-                      Genode::Directory::join (entry.name (), "archive")))
+              if (latest == "")
                 {
                   latest = entry.name ();
-                  validity_verified = true;
                 }
+              else if (entry.name () > latest)
+                {
+                  latest = entry.name ();
+                }
+              validity_verified = true;
             }
         });
       }
