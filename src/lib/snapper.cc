@@ -114,11 +114,12 @@ namespace Snapper
               }
             else
               {
+              if (config.verbose)
+                Genode::log ("removing outdated backlink: ", backlink.value);
 
-                // INFO No need to remove invalid backlinks, we just won't
-                // write them in the archive file.
-                backlink.outdated = true;
-                archiver->total_backlinks--;
+              entry.queue.remove(backlink);
+              Genode::destroy(archiver->heap, backlink._self);
+              archiver->total_backlinks--;
               }
           });
 

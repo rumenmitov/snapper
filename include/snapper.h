@@ -132,12 +132,6 @@ namespace Snapper
       Genode::Directory &snapper_root;
       bool verbose;
 
-      /**
-       * @brief Determines if a backlink should be included in the
-       * next archive file.
-       */
-      bool outdated = false;
-
       Backlink () = delete;
       Backlink (Genode::Heap &heap, Genode::Directory &snapper_root,
                 bool verbose, const Genode::String<Vfs::MAX_PATH_LEN> &value)
