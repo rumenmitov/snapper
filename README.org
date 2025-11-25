@@ -16,7 +16,12 @@ A vital property of Snapper is that it needs to be disk space efficient in order
 Install the requirements. This pre-built container image comes with all the dependencies needed for Genode:
 #+begin_src shell
   git clone --depth 1 https://github.com/genodelabs/genode.git
+
   git clone --depth 1 https://github.com/genodelabs/goa.git genode/goa
+  cd goa
+  goa update-goa 25.04 || (echo "Could not update goa to required version!" && exit 1)
+  cd ..
+
   git clone --depth 1 https://github.com/rumenmitov/snapper genode/repos/snapper
 
   podman run -d --name genode --cap-add SYS_PTRACE -v $PWD/genode:/genode -w /genode docker.io/rmitov/genode:25.05 tail -f /dev/null
