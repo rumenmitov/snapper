@@ -15,7 +15,7 @@ namespace Snapper
 
   Main::Main (Genode::Env &env)
       : rom (env, "config"), heap (env.ram (), env.rm ()),
-        snapper_root (env, heap, rom.xml ().sub_node ("vfs")), rtc (env),
+        snapper_root (env, heap, rom.node ()), rtc (env),
         timer (env), config (),
         generation (static_cast<Vfs::Simple_env &> (snapper_root)),
         snapshot (static_cast<Vfs::Simple_env &> (snapper_root)),
@@ -388,7 +388,7 @@ namespace Snapper
     if (_gen == "")
       {
         snapper_root.for_each_entry ([this, &validity_verified, &_gen] (
-                                         Genode::Directory::Entry &entry) {
+                                         const Genode::Directory::Entry &entry) {
           if (__valid_archive (
                   Genode::Directory::join (entry.name (), "archive")))
             {
@@ -535,7 +535,7 @@ namespace Snapper
     Genode::uint64_t expiry = timestamp_to_seconds (now) - config.expiration;
 
     snapper_root.for_each_entry (
-        [this, expiry] (Genode::Directory::Entry &entry) {
+        [this, expiry] (const Genode::Directory::Entry &entry) {
           try
             {
               Rtc::Timestamp ts
@@ -572,7 +572,7 @@ namespace Snapper
     state = Purge;
 
     // for each dead snapshot run __purge_zombies helper.
-    snapper_root.for_each_entry ([&] (Genode::Directory::Entry &e) {
+    snapper_root.for_each_entry ([&] (const Genode::Directory::Entry &e) {
       if (!__valid_archive (Genode::Directory::join (e.name (), "archive")))
         {
           __purge_zombies (e.name ());
@@ -723,7 +723,7 @@ namespace Snapper
   {
     Snapper::Result res = Ok;
 
-    snapper_root.for_each_entry ([this, &res] (Genode::Directory::Entry &e) {
+    snapper_root.for_each_entry ([this, &res] (const Genode::Directory::Entry &e) {
       Genode::Path<Vfs::MAX_PATH_LEN> archive
           = Genode::Directory::join (e.name (), "archive");
 
@@ -812,7 +812,7 @@ namespace Snapper
     if (latest == "")
       {
         snapper_root.for_each_entry ([this, &validity_verified, &latest] (
-                                         Genode::Directory::Entry &entry) {
+                                         const Genode::Directory::Entry &entry) {
           if (__valid_archive (
                   Genode::Directory::join (entry.name (), "archive")))
             {
@@ -930,7 +930,7 @@ namespace Snapper
     Genode::uint64_t num_generations = 0;
 
     snapper_root.for_each_entry (
-        [this, &num_generations] (Genode::Directory::Entry &e) {
+        [this, &num_generations] (const Genode::Directory::Entry &e) {
           if (__valid_archive (Genode::Directory::join (e, "archive")))
             num_generations++;
         });
@@ -944,7 +944,7 @@ namespace Snapper
     Genode::uint64_t count = 0;
 
     Genode::Directory _dir (snapper_root, dir);
-    _dir.for_each_entry ([&count] (Genode::Directory::Entry &) { count++; });
+    _dir.for_each_entry ([&count] (const Genode::Directory::Entry &) { count++; });
 
     return count;
   }
@@ -1002,7 +1002,7 @@ namespace Snapper
   {
     Genode::Directory cur_dir (snapper_root, dir);
 
-    cur_dir.for_each_entry ([&] (Genode::Directory::Entry &entry) {
+    cur_dir.for_each_entry ([&] (const Genode::Directory::Entry &entry) {
       Genode::String<Vfs::MAX_PATH_LEN> entry_path (dir, "/", entry.name ());
 
       // for each directory recurse
@@ -1017,7 +1017,7 @@ namespace Snapper
           bool is_needed = false;
 
           // check each valid generation
-          snapper_root.for_each_entry ([&] (Genode::Directory::Entry &gen) {
+          snapper_root.for_each_entry ([&] (const Genode::Directory::Entry &gen) {
             if (__valid_archive (
                     Genode::Directory::join (gen.name (), "archive")))
               {

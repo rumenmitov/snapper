@@ -46,7 +46,7 @@
  		  <config>
  			  <vfs>
  				  <dir name="dev">
- 					  <block name="block" block_buffer_count="128"/>
+ 					  <block name="block" io_buffer="128"/>
  				  </dir>
 				  <lwext4 block_device="/dev/block" cache_write_back="yes"
 				          expand_via_io="yes" writeable="yes"
@@ -55,6 +55,10 @@
  			  </vfs>
  			  <policy label_prefix="snapper" root="/" writeable="yes"/>
  		  </config>
+      <route>
+        <service name="Block"> <child name="vfs_block"/></service>
+        <any-service> <parent/> </any-service>
+      </route>
  	  </start>
 
 
