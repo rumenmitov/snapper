@@ -19,7 +19,7 @@ Install the requirements. This pre-built container image comes with all the depe
 
   git clone --depth 1 https://github.com/genodelabs/goa.git genode/goa
   cd goa
-  goa update-goa 25.04 || (echo "Could not update goa to required version!" && exit 1)
+  goa update-goa 25.10 || (echo "Could not update goa to required version!" && exit 1)
   cd ..
 
   git clone --depth 1 https://github.com/rumenmitov/snapper genode/repos/snapper
