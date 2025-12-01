@@ -13,6 +13,12 @@ namespace Snapper
   {
     Snapper::VERSION version = 0;
 
+    if (!snapper_root.file_exists (value))
+      {
+        return Genode::Attempt<Snapper::VERSION,
+                               Snapper::Archive::Backlink::Error> (OpenErr);
+      }
+
     try
       {
         Genode::Readonly_file reader (snapper_root, value);
@@ -48,6 +54,12 @@ namespace Snapper
   {
     Snapper::CRC crc = 0;
 
+    if (!snapper_root.file_exists (value))
+      {
+        return Genode::Attempt<Snapper::CRC,
+                               Snapper::Archive::Backlink::Error> (OpenErr);
+      }
+
     try
       {
         Genode::Readonly_file reader (snapper_root, value);
@@ -81,6 +93,12 @@ namespace Snapper
   Snapper::Archive::Backlink::get_reference_count (void)
   {
     Snapper::RC reference_count = 0;
+
+    if (!snapper_root.file_exists (value))
+      {
+        return Genode::Attempt<Snapper::RC,
+                               Snapper::Archive::Backlink::Error> (OpenErr);
+      }
 
     try
       {
@@ -116,6 +134,12 @@ namespace Snapper
   Snapper::Archive::Backlink::get_data_size (void)
   {
     Vfs::file_size fsize = 0;
+
+    if (!snapper_root.file_exists (value))
+      {
+        return Genode::Attempt<Genode::size_t,
+                               Snapper::Archive::Backlink::Error> (OpenErr);
+      }
 
     try
       {
