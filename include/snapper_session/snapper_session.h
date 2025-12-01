@@ -31,9 +31,6 @@ struct Snapper::Session : Genode::Session
     return "Snapper";
   }
 
-  // TODO Implement this in a better way.
-  static const Genode::size_t BUFSIZE = 1024 * 1024;
-
   /*
    * A terminal session consumes a dataspace capability for the server's
    * session-object allocation, its session capability, and a dataspace
@@ -108,7 +105,8 @@ struct Snapper::Session : Genode::Session
 
   GENODE_RPC_INTERFACE (Rpc_dataspace, Rpc_init_snapshot, Rpc_take_snapshot,
                         Rpc_commit_snapshot, Rpc_open_generation, Rpc_restore,
-                        Rpc_close_generation, Rpc_purge, Rpc_purge_expired, Rpc_purge_zombies);
+                        Rpc_close_generation, Rpc_purge, Rpc_purge_expired,
+                        Rpc_purge_zombies);
 };
 
 struct Snapper::Session_component : Genode::Rpc_object<Session>
@@ -124,8 +122,9 @@ struct Snapper::Session_component : Genode::Rpc_object<Session>
   Genode::Attached_ram_dataspace ds;
 
   Session_component () = delete;
-  Session_component (Genode::Env &env, Snapper::Main &snapper)
-      : snapper (snapper), ds (env.ram (), env.rm (), BUFSIZE)
+  Session_component (Genode::Env &env, Snapper::Main &snapper,
+                     const Genode::Number_of_bytes bufsize)
+      : snapper (snapper), ds (env.ram (), env.rm (), bufsize)
   {
   }
 
@@ -202,14 +201,15 @@ protected:
   Session_component *
   _create_session (const char *) override
   {
-    return new (md_alloc ()) Session_component (env, snapper);
+    return new (md_alloc ()) Session_component (env, snapper, bufsize);
   }
 
 public:
   Root_component (Genode::Env &env, Genode::Entrypoint &ep,
-                  Genode::Allocator &md_alloc, Snapper::Main &snapper)
+                  Genode::Allocator &md_alloc, Snapper::Main &snapper,
+                  const Genode::Number_of_bytes bufsize)
       : Genode::Root_component<Session_component> (ep, md_alloc), env (env),
-        snapper (snapper)
+        snapper (snapper), bufsize (bufsize)
   {
     if (snapper.config.verbose)
       Genode::log ("root snapper component created");
@@ -218,6 +218,7 @@ public:
 private:
   Genode::Env &env;
   Snapper::Main &snapper;
+  Genode::Number_of_bytes bufsize;
 };
 
 #endif // __cplusplus

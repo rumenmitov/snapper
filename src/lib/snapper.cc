@@ -51,9 +51,13 @@ namespace Snapper
         = rom.xml ().attribute_value<decltype (Snapper::Config::expiration)> (
             "expiration", Snapper::Config::_expiration);
 
+    config.bufsize
+        = rom.xml ().attribute_value (
+          "bufsize", Genode::Number_of_bytes(Snapper::Config::_bufsize));
+
     archiver->verbose = config.verbose;
 
-    static Snapper::Root_component root (env, env.ep (), heap, *this);
+    static Snapper::Root_component root (env, env.ep (), heap, *this, config.bufsize);
     env.parent ().announce (env.ep ().manage (root));
   }
 
@@ -178,7 +182,13 @@ namespace Snapper
             throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
           }
 
-        snapshot.construct (*snapshot, "ext");
+        /* INFO
+           `snapshot.construct()` will run the destructor first, hence
+           we need to copy the old snapshot directory.
+         */
+        Genode::Directory old_snapshot_dir(*snapshot, "/");
+        
+        snapshot.construct (old_snapshot_dir, "ext");
         snapshot_dir_path = Genode::Directory::join (snapshot_dir_path, "ext");
         snapshot_file_count = 0;
       }

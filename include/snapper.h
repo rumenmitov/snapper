@@ -94,6 +94,7 @@ namespace Snapper
       _max_snapshots = 0,
       _min_snapshots = 0,
       _expiration = 0,
+      _bufsize = 1024 * 1024,
     };
 
     bool verbose = _verbose;
@@ -103,6 +104,7 @@ namespace Snapper
     Genode::uint64_t max_snapshots = _max_snapshots;
     Genode::uint64_t min_snapshots = _min_snapshots;
     Genode::uint64_t expiration = _expiration;
+    Genode::Number_of_bytes bufsize = _bufsize;
   };
 
   /**
