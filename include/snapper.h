@@ -22,7 +22,7 @@ namespace Snapper
   struct Archive;
   struct Backlink;
 
-  typedef Genode::uint32_t CRC;
+  typedef Genode::uint64_t CRC;
   typedef Genode::uint8_t RC;
   typedef Genode::uint8_t VERSION;
 
