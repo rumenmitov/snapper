@@ -3,8 +3,8 @@
 #include <vfs/directory_service.h>
 #include <vfs/vfs_handle.h>
 
+#include "crc32.h"
 #include "snapper.h"
-#include "utils.h"
 
 namespace Snapper
 {

@@ -4,6 +4,7 @@
 #include <vfs/vfs_handle.h>
 
 #include "snapper.h"
+#include "crc32.h"
 #include "snapper_session/snapper_session.h"
 #include "utils.h"
 
