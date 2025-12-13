@@ -106,8 +106,11 @@ The Snapper library is available for most run scripts and Goa projects. First ru
 : ./<genode-dir>/depot/tool/extract rumen/src/snap
 
 - For run scripts just add =lib/snap= to the build artifacts.
-- For Goa, add =rumen/api/snap/2025-08-05= to the _archives_ file and run:
+- For Goa, add =rumen/api/snap/2025-08-05= to the _archives_ file.
 
+
+* Benchmarks
+To run benchmarks on Snapper, see _pkg/snapperbench/README.org_.
 
 * Configuration of Snapper
 :properties:
