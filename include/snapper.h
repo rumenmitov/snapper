@@ -22,7 +22,7 @@ namespace Snapper
   struct Archive;
   struct Backlink;
 
-  typedef Genode::uint64_t CRC;
+  typedef Genode::uint32_t HASH;
   typedef Genode::uint8_t RC;
   typedef Genode::uint8_t VERSION;
 
@@ -163,7 +163,7 @@ namespace Snapper
       /**
        * @brief Get the integrity of the backlink.
        */
-      Genode::Attempt<Snapper::CRC, Error> get_integrity (void);
+      Genode::Attempt<Snapper::HASH, Error> get_integrity (void);
 
       /**
        * @brief Get the reference count of the backlink.
@@ -189,7 +189,7 @@ namespace Snapper
       /**
        * @brief Checks if the backlink's version and CRC are valid.
        */
-      bool is_backlink_valid (Snapper::CRC);
+      bool is_backlink_valid (Snapper::HASH);
     };
 
     /**

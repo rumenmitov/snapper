@@ -3,9 +3,8 @@
 #include <vfs/directory_service.h>
 #include <vfs/vfs_handle.h>
 
-#include "crc32.h"
+#include "xxhash32.h"
 #include "snapper.h"
-#include "utils.h"
 
 Snapper::Archive::Archive (Genode::Heap &heap, Genode::Directory &snapper_root,
                            bool verbose)
@@ -102,25 +101,25 @@ Snapper::Archive::commit (Genode::Directory &dir,
       });
 
       const Genode::size_t archive_buf_size
-          = sizeof (Snapper::VERSION) + sizeof (Snapper::CRC)
+          = sizeof (Snapper::VERSION) + sizeof (Snapper::HASH)
             + sizeof (decltype (total_backlinks)) + archive_data_size;
 
       char *archive_buf = new (heap) char[archive_buf_size];
 
       Snapper::VERSION ver = Version;
-      Snapper::CRC crc = crc32 (archive_data_buf, archive_data_size);
+      Snapper::HASH hash = xxhash32 (archive_data_buf, archive_data_size);
 
       Genode::memcpy (archive_buf, &ver, sizeof (Snapper::VERSION));
 
-      Genode::memcpy (archive_buf + sizeof (Snapper::VERSION), &crc,
-                      sizeof (Snapper::CRC));
+      Genode::memcpy (archive_buf + sizeof (Snapper::VERSION), &hash,
+                      sizeof (Snapper::HASH));
 
       Genode::memcpy (archive_buf + sizeof (Snapper::VERSION)
-                          + sizeof (Snapper::CRC),
+                          + sizeof (Snapper::HASH),
                       &total_backlinks, sizeof (decltype (total_backlinks)));
 
       Genode::memcpy (archive_buf + sizeof (Snapper::VERSION)
-                          + sizeof (Snapper::CRC)
+                          + sizeof (Snapper::HASH)
                           + sizeof (decltype (total_backlinks)),
                       archive_data_buf, archive_data_size);
 
@@ -194,7 +193,7 @@ __for_each_pair_in_archive_file (const Genode::Readonly_file &archive_file,
                                  auto const &fn)
 {
   Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION)
-                                 + sizeof (Snapper::CRC) };
+                                 + sizeof (Snapper::HASH) };
 
   char _num_backlinks_buf[sizeof (
       decltype (Snapper::Archive::total_backlinks))];
@@ -264,7 +263,7 @@ Snapper::Archive::archive_file_contains_backlink (
     const decltype (Backlink::value) & search_val)
 {
   Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION)
-                                 + sizeof (Snapper::CRC) };
+                                 + sizeof (Snapper::HASH) };
 
   char _num_backlinks_buf[sizeof (
       decltype (Snapper::Archive::total_backlinks))];

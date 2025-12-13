@@ -14,6 +14,7 @@ endif()
 if(NOT DEFINED ENV{TESTS})
     set(ENV{TESTS} 1000)
 endif()
+add_definitions(-DXXH_NO_STREAM)
 add_definitions(-DTESTS=$ENV{TESTS})
 
 # Main Executables
@@ -25,7 +26,9 @@ add_library(snap
   lib/snapper.cc
   lib/archive.cc
   lib/backlink.cc
-  lib/utils.cc)
+  lib/utils.cc
+  lib/xxhash32.cc
+)
 
 # Linking
 target_include_directories(snap PUBLIC ../include)

@@ -4,7 +4,7 @@
 #include <vfs/vfs_handle.h>
 
 #include "snapper.h"
-#include "crc32.h"
+#include "xxhash32.h"
 #include "snapper_session/snapper_session.h"
 #include "utils.h"
 
@@ -103,17 +103,17 @@ namespace Snapper
       return InvalidState;
 
     bool new_backlink_needed = false;
-    Snapper::CRC crc = crc32 (payload, size);
+    Snapper::HASH hash = xxhash32 (payload, size);
 
-    // check if identifier exists in the mapping and if the crc
-    // matches the calculated crc of the payload.
+    // check if identifier exists in the mapping and if the hash
+    // matches the calculated hash of the payload.
     archiver->archive.with_element (
         identifier,
-        [this, &new_backlink_needed, &crc] (Archive::ArchiveEntry &entry) {
+        [this, &new_backlink_needed, &hash] (Archive::ArchiveEntry &entry) {
           // INFO Go through backlinks until a valid one is found.
           Archive::Backlink *latest_valid_backlink = nullptr;
           entry.queue.for_each ([&] (Archive::Backlink &backlink) {
-            if (backlink.is_backlink_valid (crc))
+            if (backlink.is_backlink_valid (hash))
               {
                 latest_valid_backlink = backlink._self;
               }
@@ -204,21 +204,21 @@ namespace Snapper
         Genode::New_file file (*snapshot, filepath_base);
 
         Genode::size_t buf_size = sizeof (Snapper::VERSION)
-                                  + sizeof (Snapper::CRC)
+                                  + sizeof (Snapper::HASH)
                                   + sizeof (Snapper::RC) + size;
 
         char *buf = new (heap) char[buf_size];
 
         Genode::memcpy (buf, (char *)&ver, sizeof (Snapper::VERSION));
-        Genode::memcpy (buf + sizeof (Snapper::VERSION), (char *)&crc,
-                        sizeof (Snapper::CRC));
+        Genode::memcpy (buf + sizeof (Snapper::VERSION), (char *)&hash,
+                        sizeof (Snapper::HASH));
 
         Snapper::RC reference_count = 1;
         Genode::memcpy (buf + sizeof (Snapper::VERSION)
-                            + sizeof (Snapper::CRC),
+                            + sizeof (Snapper::HASH),
                         (char *)&reference_count, sizeof (Snapper::RC));
 
-        Genode::memcpy (buf + sizeof (Snapper::VERSION) + sizeof (Snapper::CRC)
+        Genode::memcpy (buf + sizeof (Snapper::VERSION) + sizeof (Snapper::HASH)
                             + sizeof (Snapper::RC),
                         payload, size);
 
@@ -623,7 +623,7 @@ namespace Snapper
         Vfs::file_size data_size
             = snapper_root.file_size (archive_path)
               - sizeof (decltype (Archive::total_backlinks))
-              - sizeof (Snapper::CRC) - sizeof (Snapper::VERSION);
+              - sizeof (Snapper::HASH) - sizeof (Snapper::VERSION);
 
         // check version
         Genode::Readonly_file::At pos{ 0 };
@@ -650,22 +650,22 @@ namespace Snapper
             return false;
           }
 
-        // check CRC
+        // check HASH
         pos.value = sizeof (Snapper::VERSION);
 
-        char _crc_buf[sizeof (Snapper::CRC)];
-        Genode::Byte_range_ptr crc_buf (_crc_buf, sizeof (Snapper::CRC));
+        char _hash_buf[sizeof (Snapper::HASH)];
+        Genode::Byte_range_ptr hash_buf (_hash_buf, sizeof (Snapper::HASH));
 
-        if (_archive.read (pos, crc_buf) == 0)
+        if (_archive.read (pos, hash_buf) == 0)
           {
-            Genode::error ("invalid archive, missing CRC: ", archive_path);
+            Genode::error ("invalid archive, missing HASH: ", archive_path);
             return false;
           }
 
-        Snapper::CRC crc = *(reinterpret_cast<Snapper::CRC *> (crc_buf.start));
+        Snapper::HASH hash = *(reinterpret_cast<Snapper::HASH *> (hash_buf.start));
 
         // get number of entries in the data
-        pos.value = sizeof (Snapper::VERSION) + sizeof (Snapper::CRC);
+        pos.value = sizeof (Snapper::VERSION) + sizeof (Snapper::HASH);
 
         char _num_backlinks_buf[sizeof (decltype (Archive::total_backlinks))];
         Genode::Byte_range_ptr num_backlinks_buf (_num_backlinks_buf,
@@ -680,7 +680,7 @@ namespace Snapper
           }
 
         // get data
-        pos.value = sizeof (Snapper::VERSION) + sizeof (Snapper::CRC)
+        pos.value = sizeof (Snapper::VERSION) + sizeof (Snapper::HASH)
                     + sizeof (decltype (Archive::total_backlinks));
 
         char *_data_buf = (char *)heap.alloc (data_size);
@@ -693,8 +693,8 @@ namespace Snapper
             return false;
           }
 
-        // calculate and check crc
-        bool integrity = crc != crc32 (data.start, data.num_bytes);
+        // calculate and check hash
+        bool integrity = hash != xxhash32 (data.start, data.num_bytes);
         heap.free (data.start, data.num_bytes);
 
         if (integrity)

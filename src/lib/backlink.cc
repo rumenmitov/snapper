@@ -3,7 +3,7 @@
 #include <vfs/directory_service.h>
 #include <vfs/vfs_handle.h>
 
-#include "crc32.h"
+#include "xxhash32.h"
 #include "snapper.h"
 
 namespace Snapper
@@ -49,14 +49,14 @@ namespace Snapper
                            Snapper::Archive::Backlink::Error> (version);
   }
 
-  Genode::Attempt<Snapper::CRC, Snapper::Archive::Backlink::Error>
+  Genode::Attempt<Snapper::HASH, Snapper::Archive::Backlink::Error>
   Snapper::Archive::Backlink::get_integrity (void)
   {
-    Snapper::CRC crc = 0;
+    Snapper::HASH hash = 0;
 
     if (!snapper_root.file_exists (value))
       {
-        return Genode::Attempt<Snapper::CRC,
+        return Genode::Attempt<Snapper::HASH,
                                Snapper::Archive::Backlink::Error> (OpenErr);
       }
 
@@ -65,28 +65,28 @@ namespace Snapper
         Genode::Readonly_file reader (snapper_root, value);
         Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION) };
 
-        char _crc_buf[sizeof (Snapper::CRC)];
-        Genode::Byte_range_ptr crc_buf (_crc_buf, sizeof (Snapper::CRC));
+        char _hash_buf[sizeof (Snapper::HASH)];
+        Genode::Byte_range_ptr hash_buf (_hash_buf, sizeof (Snapper::HASH));
 
-        if (reader.read (pos, crc_buf) == 0)
+        if (reader.read (pos, hash_buf) == 0)
           {
-            Genode::error ("backlink missing CRC: ", value);
+            Genode::error ("backlink missing HASH: ", value);
 
-            return Genode::Attempt<Snapper::CRC,
+            return Genode::Attempt<Snapper::HASH,
                                    Snapper::Archive::Backlink::Error> (
                 MissingFieldErr);
           }
 
-        crc = *(reinterpret_cast<Snapper::CRC *> (crc_buf.start));
+        hash = *(reinterpret_cast<Snapper::HASH *> (hash_buf.start));
       }
     catch (Genode::Readonly_file::Open_failed)
       {
-        return Genode::Attempt<Snapper::CRC,
+        return Genode::Attempt<Snapper::HASH,
                                Snapper::Archive::Backlink::Error> (OpenErr);
       }
 
-    return Genode::Attempt<Snapper::CRC, Snapper::Archive::Backlink::Error> (
-        crc);
+    return Genode::Attempt<Snapper::HASH, Snapper::Archive::Backlink::Error> (
+        hash);
   }
 
   Genode::Attempt<Snapper::RC, Snapper::Archive::Backlink::Error>
@@ -104,7 +104,7 @@ namespace Snapper
       {
         Genode::Readonly_file reader (snapper_root, value);
         Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION)
-                                       + sizeof (Snapper::CRC) };
+                                       + sizeof (Snapper::HASH) };
 
         char _rc_buf[sizeof (Snapper::RC)];
         Genode::Byte_range_ptr rc_buf (_rc_buf, sizeof (Snapper::RC));
@@ -154,7 +154,7 @@ namespace Snapper
       }
 
     Genode::size_t size = fsize - sizeof (Snapper::VERSION)
-                          - sizeof (Snapper::CRC) - sizeof (Snapper::RC);
+                          - sizeof (Snapper::HASH) - sizeof (Snapper::RC);
 
     return Genode::Attempt<Genode::size_t, Snapper::Archive::Backlink::Error> (
         size);
@@ -167,7 +167,7 @@ namespace Snapper
     // result from the call to Backlink::get_integrity() is used
     // to return the data buffer.
     Snapper::Archive::Backlink::Error err = None;
-    Snapper::CRC crc = 0;
+    Snapper::HASH hash = 0;
 
     get_version ().with_result (
         [&] (Snapper::VERSION ver) {
@@ -190,11 +190,11 @@ namespace Snapper
       return err;
 
     get_integrity ().with_result (
-        [&] (Snapper::CRC _crc) { crc = _crc; },
+        [&] (Snapper::HASH _hash) { hash = _hash; },
         [&] (Snapper::Archive::Backlink::Error) {
           if (verbose)
             {
-              Genode::warning ("could not access backlink's crc: ", value,
+              Genode::warning ("could not access backlink's hash: ", value,
                                "! Remove it to "
                                "not receive this warning again.");
             }
@@ -226,7 +226,7 @@ namespace Snapper
       {
         Genode::Readonly_file reader (snapper_root, value);
         Genode::Readonly_file::At pos{ sizeof (Snapper::VERSION)
-                                       + sizeof (Snapper::CRC)
+                                       + sizeof (Snapper::HASH)
                                        + sizeof (Snapper::RC) };
 
         if (reader.read (pos, data) == 0)
@@ -241,10 +241,10 @@ namespace Snapper
         return OpenErr;
       }
 
-    if (crc32 (data.start, data.num_bytes) != crc)
+    if (xxhash32 (data.start, data.num_bytes) != hash)
       {
         if (verbose)
-          Genode::warning ("backlink has an invalid CRC: ", value,
+          Genode::warning ("backlink has an invalid HASH: ", value,
                            "! Remove it to "
                            "not receive this warning again.");
 
@@ -263,7 +263,7 @@ namespace Snapper
         reference_count);
 
     Snapper::VERSION version = 0;
-    Snapper::CRC crc = 0;
+    Snapper::HASH hash = 0;
 
     get_version ().with_result (
         [&version] (Snapper::VERSION _version) { version = _version; },
@@ -279,7 +279,7 @@ namespace Snapper
       }
 
     get_integrity ().with_result (
-        [&crc] (Snapper::CRC _crc) { crc = _crc; },
+        [&hash] (Snapper::HASH _hash) { hash = _hash; },
         [&res] (Snapper::Archive::Backlink::Error err) {
           res = Genode::Attempt<Snapper::RC,
                                 Snapper::Archive::Backlink::Error> (err);
@@ -324,22 +324,22 @@ namespace Snapper
         Genode::Append_file writer (snapper_root, value);
 
         Genode::size_t _buf_size = sizeof (Snapper::VERSION)
-                                   + sizeof (Snapper::CRC)
+                                   + sizeof (Snapper::HASH)
                                    + sizeof (Snapper::RC) + data.num_bytes;
 
         char *_buf = new (heap) char[_buf_size];
 
         Genode::memcpy (_buf, (char *)&version, sizeof (Snapper::VERSION));
 
-        Genode::memcpy (_buf + sizeof (Snapper::VERSION), (char *)&crc,
-                        sizeof (Snapper::CRC));
+        Genode::memcpy (_buf + sizeof (Snapper::VERSION), (char *)&hash,
+                        sizeof (Snapper::HASH));
 
         Genode::memcpy (_buf + sizeof (Snapper::VERSION)
-                            + sizeof (Snapper::CRC),
+                            + sizeof (Snapper::HASH),
                         (char *)&reference_count, sizeof (Snapper::RC));
 
         Genode::memcpy (_buf + sizeof (Snapper::VERSION)
-                            + sizeof (Snapper::CRC) + sizeof (Snapper::RC),
+                            + sizeof (Snapper::HASH) + sizeof (Snapper::RC),
                         data.start, data.num_bytes);
 
         Genode::New_file::Append_result write_res
@@ -377,7 +377,7 @@ namespace Snapper
   }
 
   bool
-  Snapper::Archive::Backlink::is_backlink_valid (Snapper::CRC crc)
+  Snapper::Archive::Backlink::is_backlink_valid (Snapper::HASH hash)
   {
     bool is_backlink_valid = true;
 
@@ -400,11 +400,11 @@ namespace Snapper
       return false;
 
     get_integrity ().with_result (
-        [&] (Snapper::CRC file_crc) {
-          if (file_crc != crc)
+        [&] (Snapper::HASH file_hash) {
+          if (file_hash != hash)
             {
               if (verbose)
-                Genode::log ("backlink has a mismatching crc: ", value,
+                Genode::log ("backlink has a mismatching hash: ", value,
                              ". Creating new snapshot file.");
 
               is_backlink_valid = false;
