@@ -80,7 +80,7 @@ public:
     state[3] = s3;
 
     // copy remainder to temporary buffer
-    bufferSize = stop - data;
+    bufferSize = (unsigned)(stop - data);
     for (unsigned int i = 0; i < bufferSize; i++)
       buffer[i] = data[i];
 
@@ -153,7 +153,7 @@ private:
   // internal state and temporary buffer
   Genode::uint32_t state[4]; // state[2] == seed if totalLength < MaxBufferSize
   unsigned char buffer[MaxBufferSize];
-  long int bufferSize;
+  unsigned int bufferSize;
   Genode::uint64_t totalLength;
 
   /// rotate bits, should compile to a single CPU instruction (ROL)
