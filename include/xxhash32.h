@@ -153,7 +153,7 @@ private:
   // internal state and temporary buffer
   Genode::uint32_t state[4]; // state[2] == seed if totalLength < MaxBufferSize
   unsigned char buffer[MaxBufferSize];
-  unsigned int bufferSize;
+  long int bufferSize;
   Genode::uint64_t totalLength;
 
   /// rotate bits, should compile to a single CPU instruction (ROL)
