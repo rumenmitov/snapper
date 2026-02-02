@@ -344,13 +344,58 @@ namespace Snapper
   private:
     State state = Dormant;
 
+    /*
+      INFO
+      The fields below get reset upon the initialization / loading of
+      a generation.
+     */
+
+    /**
+     * @brief The root directory of the currently loaded generation.
+     */
     Genode::Reconstructible<Genode::Directory> generation;
+
+    /**
+     * @brief The snapshot directory of the currently
+     * loaded generation.
+    */
     Genode::Reconstructible<Genode::Directory> snapshot;
+
+    /**
+     * @brief The path where we are adding new snapshot files.
+     */
     Genode::String<Vfs::MAX_PATH_LEN> snapshot_dir_path;
+
+    /**
+     * @brief The number of snapshot files in `snapshot_dir_path`.
+     */
     Genode::uint64_t snapshot_file_count = 0;
 
+    /**
+     * @brief The number of times `take_snapshot()` was called during
+     * the current snapshot process.
+    */
+    Genode::uint64_t snapshots_requested = 0;
+
+    /**
+     * @brief The total number of new snapshot files created during
+     * the current snapshot process.
+    */
+    Genode::uint64_t snapshot_files_created = 0;
+
+    /**
+     * @brief The start of the snapshot process, relative to the
+     * establishment of the connection to the Snapper service.
+     */
+    Genode::Microseconds snap_start {0};
+
+    /**
+     * @brief Stores and process the archive information for the
+     * current snapshot.
+     */
     Genode::Reconstructible<Archive> archiver;
 
+    
     /**
      * @brief Checks if archive file exists and has a valid CRC.
      */

@@ -156,6 +156,9 @@ namespace Snapper
     Genode::size_t size = fsize - sizeof (Snapper::VERSION)
                           - sizeof (Snapper::HASH) - sizeof (Snapper::RC);
 
+    if (size == 0)
+      return Genode::Attempt<Genode::size_t, Snapper::Archive::Backlink::Error>(InsufficientSizeErr);
+
     return Genode::Attempt<Genode::size_t, Snapper::Archive::Backlink::Error> (
         size);
   }

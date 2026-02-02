@@ -59,17 +59,17 @@
       </route>
 	  </start>
 
- 	  <start name="vfs" ram="24M">
+ 	  <start name="vfs" ram="64M">
  		  <provides><service name="File_system"/></provides>
  		  <config>
  			  <vfs>
  				  <dir name="dev">
- 					  <block name="block" block_buffer_count="128"/>
+ 					  <block name="block" block_buffer_count="512"/>
  				  </dir>
 				  <lwext4 block_device="/dev/block" cache_write_back="yes"
 				          expand_via_io="yes" writeable="yes"
 				          reporting="no"
-				          external_cache_size="0M" report_cache="no"/>
+				          external_cache_size="32M" report_cache="no"/>
  			  </vfs>
  			  <policy label_prefix="snapper" root="/" writeable="yes"/>
  		  </config>
@@ -77,6 +77,7 @@
 
 
     <start name="snapper" ram="399M" caps="100">
+      <resource name="CPU" quantum="100"/>
       <provides>
         <service name="Snapper"/>
       </provides>
@@ -88,7 +89,8 @@
           max_snapshots="0"
           min_snapshots="0"
           threshold="100"
-          expiration="3600">
+          expiration="3600"
+          bufsize="5M">
 
         <rtc/>
 

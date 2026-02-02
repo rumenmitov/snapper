@@ -50,3 +50,7 @@ target_link_libraries(snapper PUBLIC snap)
 target_link_libraries(snappertests PUBLIC snap)
 
 target_link_libraries(snapperbench PUBLIC snap)
+
+# Target-Specific Compiler Options
+target_compile_options(snapper PRIVATE -O3)
+target_compile_options(snapperbench PRIVATE -fno-omit-frame-pointer -g)

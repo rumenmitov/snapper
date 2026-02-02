@@ -102,6 +102,8 @@ namespace Snapper
     if (state != Creation)
       return InvalidState;
 
+    snapshots_requested++;
+
     bool new_backlink_needed = false;
     Snapper::HASH hash = xxhash32 (payload, size);
 
@@ -168,6 +170,8 @@ namespace Snapper
 
     if (!new_backlink_needed)
       return Ok;
+
+    snapshot_files_created++;
 
     // create a new snapshot file and write to it the payload metadata
     // and the payload data
@@ -272,8 +276,12 @@ namespace Snapper
 
     archiver->commit (*generation);
 
+    Genode::Microseconds snap_fin {timer.curr_time().trunc_to_plain_us()};
+
     if (config.verbose)
-      Genode::log ("generation committed successfully!");
+      Genode::log ("generation committed successfully! ", snapshots_requested,
+                   " snapshots requested, ", snapshot_files_created,
+                   " snapshot files created, ", snap_fin.value - snap_start.value, "us");
 
     __reset_gen ();
 
@@ -625,6 +633,8 @@ namespace Snapper
               - sizeof (decltype (Archive::total_backlinks))
               - sizeof (Snapper::HASH) - sizeof (Snapper::VERSION);
 
+        if (data_size == 0) return false;
+
         // check version
         Genode::Readonly_file::At pos{ 0 };
 
@@ -758,6 +768,8 @@ namespace Snapper
   Snapper::Result
   Main::__init_gen (void)
   {
+    snap_start = timer.curr_time ().trunc_to_plain_us ();
+    
     Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> timestamp
         = timestamp_to_str (rtc.current_time ());
 
@@ -805,6 +817,9 @@ namespace Snapper
   {
     snapshot_dir_path = "/";
     snapshot_file_count = 0;
+    snapshots_requested = 0;
+    snapshot_files_created = 0;
+    snap_start.value = 0;
 
     snapshot.destruct ();
     generation.destruct ();

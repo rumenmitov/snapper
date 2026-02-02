@@ -208,7 +208,7 @@ Example[fn:3] of an archive file's data section corresponding to the multi-backl
 |  KEY  |            VALUE             |
 |-------+------------------------------|
 |   i   | "/t_1/snapshot/ext/ext/00cd" |
-|   i   | "/t_0/snapshot/ext/ext/0054" |
+| i + 1 | "/t_0/snapshot/ext/ext/0054" |
 |  ...  |             ...              |
 | i + j |             ...              |
 #+end_example
@@ -221,12 +221,12 @@ The archive file has the following structure:
 +----+----------------+--------------------------------+---------...
 #+end_example
 
-| Symbol | Size        | Description                               |
-|--------+-------------+-------------------------------------------|
-| v      | 1 byte      | Snapper version                           |
-| hash   | 4 bytes     | cyclic redundancy check for the data      |
-| n      | 8 bytes     | number of entries in the data             |
-| data   | as required | array that contains snapshot files' paths |
+| Symbol | Size        | Description                                       |
+|--------+-------------+---------------------------------------------------|
+| v      | 1 byte      | Snapper version                                   |
+| hash   | 4 bytes     | integrity check for the data                      |
+| n      | 8 bytes     | number of entries in the data                     |
+| data   | as required | key-value map that contains snapshot files' paths |
 
 The archive file contains information of how many entries comprise the data in order to prevent a =while(true)= loop when reading the data. Note, that the hash applies only to the data which is sufficient as modifying the _n_ (i.e. the number of entries) and appending false entries to the data will result in the overall data segment having a different hash than the original.
 
@@ -246,9 +246,9 @@ The structure of the snapshot file is as follows:
 | Symbol | Size        | Description                          |
 |--------+-------------+--------------------------------------|
 | v      | 1 byte      | Snapper version                      |
-| hash   | 4 bytes     | cyclic redundancy check for the data |
-| rc     | 1 byte      | Reference count (unsigned)           |
-| data   | as required | the saved page contents              |
+| hash   | 4 bytes     | integrity for the data               |
+| rc     | 1 byte      | reference count (unsigned)           |
+| data   | as required | the snapshot content                 |
 
 ** The Extender Directory
 The extender directory is used to reduce the load on the filesystem. Since performance can be impacted if too many files are in the same directory, after a certain number (~Snapper::Config::threshold~), a sub-directory will be created called _ext_ and subsequent snapshot files will be stored within it, instead of the current one. Important to note is that the incremental counter used to name the snapshot files resets within the extender directory.

@@ -104,6 +104,11 @@ Snapper::Archive::commit (Genode::Directory &dir,
           = sizeof (Snapper::VERSION) + sizeof (Snapper::HASH)
             + sizeof (decltype (total_backlinks)) + archive_data_size;
 
+      if (archive_buf_size == 0) {
+          Genode::error ("archive has an invalid size!");
+          throw CrashStates::SNAPSHOT_NOT_POSSIBLE;
+      }
+
       char *archive_buf = new (heap) char[archive_buf_size];
 
       Snapper::VERSION ver = Version;
