@@ -104,7 +104,7 @@ namespace Snapper
     Genode::uint64_t max_snapshots = _max_snapshots;
     Genode::uint64_t min_snapshots = _min_snapshots;
     Genode::uint64_t expiration = _expiration;
-    Genode::Number_of_bytes bufsize = _bufsize;
+    Genode::Number_of_bytes bufsize = Genode::Number_of_bytes (_bufsize);
   };
 
   /**
@@ -332,14 +332,26 @@ namespace Snapper
      */
     Result purge_zombies (void);
 
-    Genode::Attached_rom_dataspace rom;
+    Genode::Env &env;
 
-    Genode::Heap heap;
-    Genode::Root_directory snapper_root;
-    Rtc::Connection rtc;
-    Timer::Connection timer;
+    Genode::Attached_rom_dataspace rom{ env, "config" };
 
-    Config config;
+    Genode::Heap heap{ env.ram (), env.rm () };
+    
+    Genode::Root_directory snapper_root = rom.node ().with_sub_node (
+        "vfs",
+        [&] (Genode::Node const &config) -> Genode::Root_directory {
+          return { env, heap, config };
+        },
+        [&] () -> Genode::Root_directory {
+          Genode::error ("VFS not configured");
+          return { env, heap, Genode::Node () };
+        });
+
+    Rtc::Connection rtc{ env };
+    Timer::Connection timer{ env };
+
+    Config config{};
 
   private:
     State state = Dormant;
@@ -353,18 +365,22 @@ namespace Snapper
     /**
      * @brief The root directory of the currently loaded generation.
      */
-    Genode::Reconstructible<Genode::Directory> generation;
+    Genode::Reconstructible<Genode::Directory> generation{
+      static_cast<Vfs::Simple_env &> (snapper_root)
+    };
 
     /**
      * @brief The snapshot directory of the currently
      * loaded generation.
-    */
-    Genode::Reconstructible<Genode::Directory> snapshot;
+     */
+    Genode::Reconstructible<Genode::Directory> snapshot{
+      static_cast<Vfs::Simple_env &> (snapper_root)
+    };
 
     /**
      * @brief The path where we are adding new snapshot files.
      */
-    Genode::String<Vfs::MAX_PATH_LEN> snapshot_dir_path;
+    Genode::String<Vfs::MAX_PATH_LEN> snapshot_dir_path{ "/" };
 
     /**
      * @brief The number of snapshot files in `snapshot_dir_path`.
@@ -374,28 +390,28 @@ namespace Snapper
     /**
      * @brief The number of times `take_snapshot()` was called during
      * the current snapshot process.
-    */
+     */
     Genode::uint64_t snapshots_requested = 0;
 
     /**
      * @brief The total number of new snapshot files created during
      * the current snapshot process.
-    */
+     */
     Genode::uint64_t snapshot_files_created = 0;
 
     /**
      * @brief The start of the snapshot process, relative to the
      * establishment of the connection to the Snapper service.
      */
-    Genode::Microseconds snap_start {0};
+    Genode::Microseconds snap_start{ 0 };
 
     /**
      * @brief Stores and process the archive information for the
      * current snapshot.
      */
-    Genode::Reconstructible<Archive> archiver;
+    Genode::Reconstructible<Archive> archiver{ heap, snapper_root,
+                                               config.verbose };
 
-    
     /**
      * @brief Checks if archive file exists and has a valid CRC.
      */

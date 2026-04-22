@@ -191,25 +191,23 @@ struct Snapper::Session_component : Genode::Rpc_object<Session>
     return snapper.purge_zombies ();
   }
 };
-// TODO Update the Root component code to the newer Genode API when it
-// comes out on https://depot.genode.org (NB: update schedule is tied
-// to SculptOS).
+
 class Snapper::Root_component
     : public Genode::Root_component<Session_component>
 {
 protected:
-  Session_component *
+  Create_result
   _create_session (const char *) override
   {
-    return new (md_alloc ()) Session_component (env, snapper, bufsize);
+    return *(new (md_alloc ()) Session_component (env, snapper, bufsize));
   }
 
 public:
-  Root_component (Genode::Env &env, Genode::Entrypoint &ep,
-                  Genode::Allocator &md_alloc, Snapper::Main &snapper,
+  Root_component (Genode::Env &env, Genode::Allocator &md_alloc,
+                  Snapper::Main &snapper,
                   const Genode::Number_of_bytes bufsize)
-      : Genode::Root_component<Session_component> (ep, md_alloc), env (env),
-        snapper (snapper), bufsize (bufsize)
+      : Genode::Root_component<Session_component> (env.ep (), md_alloc),
+        env (env), snapper (snapper), bufsize (bufsize)
   {
     if (snapper.config.verbose)
       Genode::log ("root snapper component created");

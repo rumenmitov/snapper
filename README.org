@@ -15,14 +15,14 @@ A vital property of Snapper is that it needs to be disk space efficient in order
 * Installation
 Install the requirements. This pre-built container image comes with all the dependencies needed for Genode:
 #+begin_src shell
-  git clone -b sculpt-25.04 https://github.com/genodelabs/genode.git
+  git clone -b sculpt-25.10.1 https://github.com/genodelabs/genode.git
 
   git clone https://github.com/genodelabs/goa.git genode/goa
 
   git clone --depth 1 https://github.com/rumenmitov/snapper genode/repos/snapper
 
   # If you want to use ext4 for the file-system:
-  git clone -b 25.05-2025-07-07 --depth 1 https://codeberg.org/jws/genode-wundertuete.git genode/repos/wundertuete
+  git clone -b sculpt-25.10-2025-12-03 --depth 1 https://codeberg.org/jws/genode-wundertuete.git genode/repos/wundertuete
 
   # Start the container
   podman run -d --name genode --cap-add SYS_PTRACE -v $PWD/genode:/genode -w /genode docker.io/rmitov/genode:25.05 tail -f /dev/null
@@ -41,11 +41,11 @@ Add the following to /<genode>/build/x86_64/etc/build.conf/:
 
 #+begin_src shell
   # You may need to run this command twice, if it fails the first time.
-  goa update-goa 25.04 || (echo "Could not update goa to required version!" && exit 1)
+  goa update-goa 25.10 || (echo "Could not update goa to required version!" && exit 1)
 
   /genode/tool/ports/prepare_port lwext4
   DEPOT_DIR=/genode/repos/snapper/var/depot goa depot-dir
-  DEPOT_DIR=/genode/repos/snapper/var/depot FORCE_VERSION=2025-07-09 /genode/tool/depot/create rumen/bin/x86_64/vfs_lwext4
+  DEPOT_DIR=/genode/repos/snapper/var/depot FORCE_VERSION=2026-04-22 /genode/tool/depot/create rumen/bin/x86_64/vfs_lwext4
 
   mkdir /genode/repos/snapper/raw
 
