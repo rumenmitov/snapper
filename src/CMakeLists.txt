@@ -29,17 +29,10 @@ add_definitions(-DPAYLOAD_NUM=$ENV{PAYLOAD_NUM})
 add_definitions(-DPAYLOAD_SIZE=$ENV{PAYLOAD_SIZE})
 
 # Main Executables
-add_executable(snapper snapper/main.cc)
-add_executable(snappertests test/snapper/main.cc)
-add_executable(snapperbench bench/snapper/main.cc)
 
 # Snapper Library (libsnap)
 add_library(snap
-  lib/snapper.cc
-  lib/archive.cc
-  lib/backlink.cc
   lib/utils.cc
-  lib/xxhash32.cc
 )
 
 # Linking
