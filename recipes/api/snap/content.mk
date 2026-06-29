@@ -1,12 +1,9 @@
-content: include lib LICENSE
+MIRRORED_FROM_REP_DIR := include
 
-include:
-	mkdir -p include
-	cp -r $(REP_DIR)/include/* $@
+content: $(MIRRORED_FROM_REP_DIR) LICENSE
 
-lib:
-	mkdir -p lib/mk
-	cp -r $(REP_DIR)/lib/mk/* lib/mk/
+$(MIRRORED_FROM_REP_DIR):
+	$(mirror_from_rep_dir)
 
 LICENSE:
-	cp $(REP_DIR)/LICENSE $@
+	cp $(REP_DIR)/$@ $@

@@ -1,4 +1,4 @@
-#include <utils.h>
+#include "utils.h"
 
 Genode::String<
     Vfs::Directory_service::Dirent::Name::MAX_LEN>
