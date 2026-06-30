@@ -44,72 +44,81 @@ public:
     return call<Rpc_dataspace> ();
   }
 
-  Result
-  _take_snapshot (Genode::size_t size, Archive::ArchiveKey identifier) override
+  void
+  create (void) override
   {
-    return call<Rpc_take_snapshot> (size, identifier);
+    return call<Rpc_create> ();
   }
 
-  Result
-  _restore (Genode::size_t size, Archive::ArchiveKey identifier) override
-  {
-    return call<Rpc_restore> (size, identifier);
-  }
-
-  Result
-  init_snapshot (void) override
-  {
-    return call<Rpc_init_snapshot> ();
-  }
-
-  Result
-  take_snapshot (void const *const payload, Genode::size_t size,
-                 Archive::ArchiveKey identifier)
+  /* INFO
+     Client-side only function. 'payload' is copied to the
+     dataspace which can then be used by capture_ds().
+  */
+  void
+  capture (int chunkid, Genode::Span const &payload)
   {
     Genode::Mutex::Guard _guard (_mutex);
-    Genode::memcpy (_io_buffer.local_addr<void> (), payload, size);
-
-    return call<Rpc_take_snapshot> (size, identifier);
+    
+    Genode::memcpy (_io_buffer.local_addr<void> (),
+                    payload.start,
+                    payload.num_bytes);
+    
+    return call<Rpc_capture_ds> (chunkid, size);
   }
 
-  Result
-  commit_snapshot (void) override
+  /* INFO
+     Necessary only for the Snapper server.
+   */
+  void
+  capture_ds (int, Genode::size_t) = 0;
+
+  void
+  abort (void) override
   {
-    return call<Rpc_commit_snapshot> ();
+    return call<Rpc_abort> ();
   }
 
-  Result
-  open_generation (
-      const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
-          &generation
-      = "") override
+  void
+  commit (void) override
   {
-    return call<Rpc_open_generation> (generation);
+    return call<Rpc_commit> ();
   }
 
-  Result
-  restore (void *dest, Genode::size_t size,
-           Archive::ArchiveKey identifier)
+  void
+  load (int snapid) override
+  {
+    return call<Rpc_load> (snapid);    
+  }
+
+  /* INFO
+     Client-side only function. 'payload' is copied to the
+     dataspace which can then be used by capture_ds().
+  */
+  void
+  restore (int chunkid, Genode::Byte_range_ptr const &payload)
   {
     Genode::Mutex::Guard _guard (_mutex);
-    Result res = call<Rpc_restore> (size, identifier);
-    Genode::memcpy (dest, _io_buffer.local_addr<void> (), size);
-
-    return res;
+    
+    call<Rpc_restore_ds> (chunkid, payload.num_bytes);
+    Genode::memcpy (payload.start, _io_buffer.local_addr<void> (), payload.size);
   }
 
-  Result
-  close_generation (void) override
+  /* INFO
+     Necessary only for the Snapper server.
+   */
+  void
+  restore_ds (int chunkid, Genode::size_t size) = 0;
+
+  void
+  unload (void) override
   {
-    return call<Rpc_close_generation> ();
+    return call<Rpc_unload> ();
   }
 
-  Result
-  purge (const Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
-             &generation
-         = "") override
+  void
+  purge (int snapid) override
   {
-    return call<Rpc_purge> (generation);
+    return call<Rpc_purge> (snapid);
   }
 
   void
@@ -118,10 +127,10 @@ public:
     call<Rpc_purge_expired> ();
   }
 
-  Result
-  purge_zombies (void) override
+  void
+  heal (void) override
   {
-    return call<Rpc_purge_zombies> ();
+    return call<Rpc_heal> ();
   }
 };
 

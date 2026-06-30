@@ -1,4 +1,4 @@
-OBJS = utils.o tiny_sha.o
+OBJS = utils.o snapper.o
 
 snapper: $(OBJS)
 	$(CC) $(LDFLAGS) $(LDLIBS) -o $@ $<

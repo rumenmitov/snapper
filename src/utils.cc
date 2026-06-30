@@ -1,7 +1,7 @@
 #include "utils.h"
 
 Genode::String<
-    Vfs::Directory_service::Dirent::Name::MAX_LEN>
+  Genode::Vfs::Directory_service::Dirent::Name::MAX_LEN>
 timestamp_to_str (const Rtc::Timestamp &ts)
 {
   Genode::String<4+1> year (ts.year);
@@ -17,7 +17,7 @@ timestamp_to_str (const Rtc::Timestamp &ts)
   minute = (ts.minute < 10) ? Genode::String<2+1>("0", minute) : minute;
   second = (ts.second < 10) ? Genode::String<2+1>("0", second) : second;
   
-  Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN> str (
+  Genode::String<Genode::Vfs::Directory_service::Dirent::Name::MAX_LEN> str (
       year, "-", month, "-", day, " ", hour, ":", minute, ":",
       second);
 
@@ -28,7 +28,7 @@ timestamp_to_str (const Rtc::Timestamp &ts)
 Rtc::Timestamp
 str_to_timestamp (char *str)
 {
-  if (Genode::strlen (str) > Vfs::Directory_service::Dirent::Name::MAX_LEN)
+  if (Genode::strlen (str) > Genode::Vfs::Directory_service::Dirent::Name::MAX_LEN)
     {
       throw -1;
     }

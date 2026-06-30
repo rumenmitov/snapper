@@ -26,7 +26,7 @@
 /**
  * @brief Convert RTC timestamp to formatted string.
  */
-Genode::String<Vfs::Directory_service::Dirent::Name::MAX_LEN>
+Genode::String<Genode::Vfs::Directory_service::Dirent::Name::MAX_LEN>
 timestamp_to_str (const Rtc::Timestamp &ts);
 
 /**
