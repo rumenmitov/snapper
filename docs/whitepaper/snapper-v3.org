@@ -123,14 +123,18 @@ As =Snapper::archive= resides in-memory, at the end of a Snapper operation it mu
 
 | BYTE RANGE | PURPOSE                  |
 |------------+--------------------------|
-| 0 to 255   | SHA-256 of encoded data. |
-| 256 to end | Encoded data.            |
+| 0 to 31    | SHA-256 of encoded data. |
+| 32 to end  | Encoded data.            |
+
+Note that while the SHA-256 of the archive file can detect a corrupted archive file, Snapper 3.0 does not have any way to fix the file. It is recommended to make regular backups of the latest version of the archive file. It is important that said backups are done while Snapper is inactive (i.e. not in the middle of an operation) and the file-system is consistent with the archive file (=/<snapper-root>/WAL= is not present).
+
+Replacing a corrupted archive file with an outdated backup is not supported and is considered undefined behavior.
 
 Layout of encoded data:
 
 | BYTE RANGE                                           | PURPOSE             |
 |------------------------------------------------------+---------------------|
-| 256 to (size_{payloadmap} - 1)                          | Encoded payloadmap. |
+| 32 to (size_{payloadmap} - 1)                           | Encoded payloadmap. |
 | size_{payloadmap} to (size_{payloadmap} + size_{filemap} - 1) | Encoded filemap.    |
 | (size_{payloadmap} + size_{filemap})                       | Encoded snapmap.    |
 
@@ -192,13 +196,10 @@ In the directory =/<snapper-root>/snapshot-files/de/ad/be/ef/=, the following su
 
 Note that payloads \langle 0x1, 0x1 \rangle, \langle 0x1, 0x5 \rangle, and \langle 0x5, 0x4 \rangle can each be recovered from any of the redundant files in:
 
-=/<snapper-root>/snapshot-files/de/ad/be/ef/0x1/=, and
-
-=/<snapper-root>/snapshot-files/de/ad/be/ef/0x2/=.
-
+=/<snapper-root>/snapshot-files/de/ad/be/ef/0x1/=.
 
 *** Redundancy-Ratio
-The redundancy-ratio is the relationship between the number of distinct payloads, \langle =snapid=, =chunkid= \rangle, that require a file from a redundant set and the size of that redundant set. A high redundancy-ratio is an indicator that more redundant copies should be created in subsequent snapshots (see [[#configuration][Configuration]]).
+The redundancy-ratio is the relationship between the number of distinct payloads, \langle =snapid=, =chunkid= \rangle, that require a file from a redundant set and the size of that redundant set. A low redundancy-ratio is an indicator that more redundant copies should be created (see [[#configuration][Configuration]]).
 
 The redundancy-ratio (i.e. /rr/) can be calculated for any =rfid= in =Snapper::archive::filemap= in the following way:
 
@@ -227,6 +228,7 @@ Snapper should be configurable through Genode's HID (or XML). The configuration 
 | verbose       |     ~bool~     |  false  |                            Whether to print verbose output. |
 |---------------+--------------+---------+-------------------------------------------------------------|
 | redundancy    |    ~double~    |   0.5   | Redundancy-ratio threshold to create more redundant copies. |
+|               |              |         |                          (Restricted to values (0.0, 1.0].) |
 |---------------+--------------+---------+-------------------------------------------------------------|
 | max_snapshots | ~unsigned int~ |    0    |             Maximum count of snapshots inside snapper root. |
 |               |              |         |                               (0 interpreted as unlimited.) |
@@ -236,12 +238,14 @@ Snapper should be configurable through Genode's HID (or XML). The configuration 
 | expiration    | ~unsigned int~ |    0    |                         How long a snapshot should be kept. |
 |               |  (seconds)   |         |                                                             |
 |---------------+--------------+---------+-------------------------------------------------------------|
-| protect     |    string    |   ""    |   Comma-separated =snapid= list of snapshots that can only be |
+| protect       |    string    |   ""    |   Comma-separated =snapid= list of snapshots that can only be |
 |               |              |         |                                  removed by a manual purge. |
 |---------------+--------------+---------+-------------------------------------------------------------|
 | bufsize       |    ~size_t~    |   1MB   |                                  Maximum size of a payload. |
 |               |   (bytes)    |         |                                                             |
 |---------------+--------------+---------+-------------------------------------------------------------|
+
+Note that due to how redundant copies are named, the implementation does not allow for =Snapper::Config::redundancy= to exceed 1.0.
 
 #+latex: \clearpage
 
@@ -271,7 +275,7 @@ Initializes the Snapper component and ensures that the component is in a consist
 :PROPERTIES:
 :CUSTOM_ID: taking-a-snapshot
 :END:
-Taking a snapshot does not need to be done in one go. After initializing a new snapshot with =Snapper::new()=, any payload saved with =Snapper::capture()= will be present in the snapshot. The snapshot is only finalized once =Snapper::commit()= is called. In the scenario in which the payload associated with a particular snapper identifier gets becomes stale before the snapshot is committed, =Snapper::capture()= can be called again and it will overwrite the stale entry in the to-be-committed snapshot.
+Taking a snapshot does not need to be done in one go. After initializing a new snapshot with =Snapper::new()=, any payload saved with =Snapper::capture()= will be present in the snapshot. The snapshot is only finalized once =Snapper::commit()= is called. Note that once =Snapper::capture()= has been called on a specific chunk, that chunk cannot be captured again until the next snapshot!
 
 Note, that if the system shuts down before the snapshot can be committed, then the snapshot root directory may be in an inconsistent state. Hence, once the system reboots it will detect that the snapshot is invalid and it will clean up.
 
@@ -286,7 +290,7 @@ The steps for taking a snapshot are as follows:
    1. Check if \langle =snapid=, =chunkid= \rangle is already present in =Snapper::archive::payloadmap=. If it is, return an error as it is not possible to overwrite the same payload.
    2. Hash the payload contents to get the =hash= (first 64 bits only).
    3. Find all redundant file sub-directories corresponding to the =hash=.
-   4. Choose a snapshot file from each of those sub-directories. Check that the snapshot file matches the hash. Compare the snapshot file with the contents of the chunk.
+   4. Choose a snapshot file from each of those sub-directories. Check that the snapshot file matches the hash. Compare the snapshot file with the contents of the chunk. Note, that if the snapshot file does not correspond to the hash, it should be fixed by replacing it with one of its redundant copies. If no such copy exists, the redundant set should be removed.
    5. If there is a match, then we will use the snapshot file's =rfid=. Increment the =rfid='s reference count in =Snapper::archive::filemap=.
    6. If there is no match from any of the redundant sets, assign a new =rfid= and create a new redundant file sub-directory. Create an entry for the new =rfid= in =Snapper::archive::filemap=.
    7. Insert the entry \langle =snapid=, =chunkid= \rangle \to =rfid= in =Snapper::archive::payloadmap=.
@@ -324,7 +328,7 @@ The steps for restoring a snapshot are as follows:
 1. Load the archive file as the =Snapper::archive=.
 2. For each requested \langle =snapid=, =chunkid= \rangle in =Snapper::archive::payloadmap=, use the resulting =rfid= to:
    1. Lookup the =hash= of the =rfid= by using =Snapper::archive::filemap=, and find the associated redundant file sub-directory.
-   2. Select any snapshot file from the redundant file sub-directory. Make sure the snapshot file matches the hash.
+   2. Select any snapshot file from the redundant file sub-directory, where the snapshot file matches the hash. If the snapshot file does not match the hash, it is "corrupted" and should be replaced by another redundant copy. If no other redundant copy exists, an irrecoverable corruption error should be returned.
    3. Return the contents of the snapshot file back to the client.
 
 *** DONE Snapper::load()
@@ -353,6 +357,7 @@ The general purge operation is as follows:
 1. Load =Snapper::archive= from the archive structure.
 2. For each =rfid= entry in =snapid='s entry in =Snapper::archive::snapmap=:
    1. Decrement the =rfid='s reference count in =Snapper::archive::filemap=.
+   2. Remove all =Snapper::archive::payloadmap= entries that contain =snapid=.
 3. Remove the =snapid= entry from =Snapper::archive::snapmap=.
 4. Create =/<snapper-root>/WAL=.
 5. Save =Snapper::archive= into the archive file.
@@ -364,7 +369,7 @@ The general purge operation is as follows:
       3. Continue with next =rfid= (/step 6/).
    3. If =rc= is greater than 0:
       1. Check the number of files in the =rfid= sub-directory.
-      2. If there are no file paths: remove the sub-directory, remove the =rfid= entry from =Snapper::archive::filemap=, and continue to next =rfid= (/step 6/).
+      2. If there are no file paths: signal a data loss error, remove the sub-directory, remove the =rfid= entry from =Snapper::archive::filemap=, and continue to next =rfid= (/step 6/).
       3. If there is at least one file path:
          1. Calculate the redundant-ratio, =rr=, by using \[ \# Files - 1 \] instead of \[ \# Files \].
          2. If =rr= \ge =Snapper::Config::redundancy=:
@@ -406,7 +411,7 @@ The healing operation is as follows:
       1. Check the number of files in the =rfid= sub-directory.
       2. If there are no file paths: remove the sub-directory, remove the =rfid= entry from =Snapper::archive::filemap=, and continue to next =rfid= (/step 3/).
       3. If there is at least one file path:
-         1. Calculate the redundant-ratio, =rr=.
+         1. Calculate the redundant-ratio, =rr=, by using \[ \# Files - 1 \] instead of \[ \# Files \].
          2. If =rr= \geq =Snapper::Config::redundancy=:
 
             There are enough other snapshot files in the redundant file set to ensure the =rr= is high enough. Hence, select a snapshot file from the sub-directory and unlink it.
@@ -513,28 +518,30 @@ The following complexity analysis uses the following assumptions:
 - Let C_{i} denote a chunk (where _i_ is the snapper identifier), such that \[ \bigcup_{i=0}^{c-1} C_{i} = D \] and \[ \forall i,j < n, i \neq j: C_{i} \cap C_{j} = \emptyset \].
 - let S be the set of all snapshots, and s = |S|.
 - Let M be the maximum size of a payload (i.e. =Snapper::Config::bufsize=).
+- Let n be the maximum count of redundant sets under any hash sub-directory.
+- Let \omega be the maximum count of redundant copies in any redundant set.
 
 
 Note that for operations such as =Snapper::init()= that may occasionally call other operations listed below (i.e. heal and purge), the assumption is made that those calls do not take place. In the case that they do, add the desired complexities from the table.
 
-Keep in mind that the complexity of \[ O(s \cdot c) \] assumes that each snapshot always creates a new snapshot file for each chunk. With redundant files in practice this should reduce the amortized complexity based on how often the contents of the chunk change.
+Keep in mind that the complexity of \[ O(s \cdot c) \] assumes that each snapshot always creates a new snapshot file for each chunk. With redundant files in practice this should reduce the amortized complexity based on how often the contents of the chunk change. Hashing and file-system lookups are also assumed to be constant time (see [[#expected-workloads][Expected Workloads]]).
 
 #+ATTR_LATEX: :font \footnotesize
-  | OPERATION          | TIME COMPLEXITY | SPACE COMPLEXITY | REGULARITY                       |
-  |--------------------+-----------------+------------------+----------------------------------|
-  | =Snapper::init()=    | O(1)            | O(1)             | Once per boot.                   |
-  |--------------------+-----------------+------------------+----------------------------------|
-  | =Snapper::new()=     | O(s \cdot c)        | O(s \cdot c)         | Once per new snapshot.           |
-  | =Snapper::capture()= | O(s \cdot c)[fn:5]  | O(s \cdot c + M)     | On every payload saved.          |
-  | =Snapper::commit()=  | O(1)            | O(s \cdot c)         | Once per new snapshot.           |
-  |--------------------+-----------------+------------------+----------------------------------|
-  | =Snapper::load()=    | O(s \cdot c)        | O(s \cdot c)         | Once when restoring a snapshot.  |
-  | =Snapper::restore()= | O(1)            | O(s \cdot c + M)     | On every payload restored.       |
-  | =Snapper::unload()=  | O(1)            | O(1)             | Once when restoring a snapshot.  |
-  |--------------------+-----------------+------------------+----------------------------------|
-  | =Snapper::purge()=   | O(s \cdot c)        | O(s \cdot c)         | On every purge[fn:6].            |
-  |--------------------+-----------------+------------------+----------------------------------|
-  | =Snapper::heal()=    | O(s \cdot c)        | O(s \cdot c)         | After system crash during purge. |
+  | OPERATION          | TIME COMPLEXITY        | SPACE COMPLEXITY | REGULARITY                       |
+  |--------------------+------------------------+------------------+----------------------------------|
+  | =Snapper::init()=    | O(1)                   | O(1)             | Once per boot.                   |
+  |--------------------+------------------------+------------------+----------------------------------|
+  | =Snapper::new()=     | O(s \cdot c)               | O(s \cdot c)         | Once per new snapshot.           |
+  | =Snapper::capture()= | O(s \cdot c + n \cdot \omega)[fn:5] | O(s \cdot c + M)     | On every payload saved.          |
+  | =Snapper::commit()=  | O(s \cdot c)               | O(s \cdot c)         | Once per new snapshot.           |
+  |--------------------+------------------------+------------------+----------------------------------|
+  | =Snapper::load()=    | O(s \cdot c)               | O(s \cdot c)         | Once when restoring a snapshot.  |
+  | =Snapper::restore()= | O(\omega)                   | O(s \cdot c + M)     | On every payload restored.       |
+  | =Snapper::unload()=  | O(1)                   | O(1)             | Once when restoring a snapshot.  |
+  |--------------------+------------------------+------------------+----------------------------------|
+  | =Snapper::purge()=   | O(s \cdot c)               | O(s \cdot c)         | On every purge[fn:6].            |
+  |--------------------+------------------------+------------------+----------------------------------|
+  | =Snapper::heal()=    | O(s \cdot c)               | O(s \cdot c)         | After system crash during purge. |
 
 * DONE Correctness
 :PROPERTIES:
@@ -542,7 +549,7 @@ Keep in mind that the complexity of \[ O(s \cdot c) \] assumes that each snapsho
 :END:
 Snapper's correctness can be demonstrated by the following safety property: each payload has a redundancy-ratio of at least =Snapper::Config::redundancy= at all times. The proof for the property is as follows.
 
-There are two operations that could result in a change in the redundancy-ratio of a given payload: capturing and purging a snapshot. The purge operation includes a check to ensure that the redundancy-ratio of a payload will not drop below =Snapper::Config::redundancy= before removing a snapshot file from the redundant file set.
+There are three operations that could result in a change in the redundancy-ratio of a given payload: capturing, purging, and healing a snapshot. The purge and heal operations include a check to ensure that the redundancy-ratio of a payload will not drop below =Snapper::Config::redundancy= before removing a snapshot file from the redundant file set. Hence, the property holds trivially.
 
 When capturing a new payload that belongs to a redundant file set _i_ there are two possibilities after increasing the reference count, rc_{i}:
 
@@ -626,9 +633,9 @@ Thus it is clear that the number of snapshot files are lower bounded by $\rho \c
 ** DONE Memory Limitations
 The memory cost per payload is 32 bytes: 24 bytes from the =Snapper::archive::payloadmap= entry, 8 bytes from an array entry in =Snapper::archive::snapmap=[fn:7]. The memory cost per snapshot file is 24 bytes (from the =Snapper::archive::filemap= entry).
 
-Therefore, the total memory cost, Cost_{mem}, will be: $p \cdot 32 + \# Files \cdot 24$ bytes. Each time a new snapshot file needs to be created for a payload, the cost will be 56 bytes. Conversely, if a payload does not need an additional redundant copy, the cost will be 32 bytes.
+Therefore, the total memory cost, Cost_{mem}, will be: $p \cdot 32 + |R| \cdot 24$ bytes. Each time a new redundant set needs to be created for a payload, the cost will be 56 bytes. Conversely, if a payload is part of an already existing redundant set, the cost will be 32 bytes.
 
-\[ Cost_{mem} (p, \# Files) = 56 \cdot \# Files + 32 \cdot (p - \# Files) \]
+\[ Cost_{mem} (p, |R|) = 56 \cdot |R| + 32 \cdot (p - |R|) \]
 
 ** DONE Disk Limitations
 The most fundamental limitation in regards to the persistent storage is the maximum file count of the underlying file-system.
@@ -640,15 +647,18 @@ The next limitation is the length of the hash itself. The longer the hash, the m
 An alternative approach could be to reduce the length of the hash, thereby reducing the number of directories that would need to be traversed. Making the hash too short however could result in a higher collision rate, i.e. higher number of redundant sets per hash. As the operation [[#taking-a-snapshot][Taking A Snapshot]] linearly checks each redundant set under a given hash for matches, the search speed will scale poorly.
 
 ** DONE Expected Workloads
-Keeping in mind the previously-outlined limitations, Snapper 3.0 uses 64-bit hashes, with 2 bytes (i.e. hexadecimal characters) per directory level. This results in a maximum count of directory entries of 128, and 8 levels of sub-directories.
+:PROPERTIES:
+:CUSTOM_ID: expected-workloads
+:END:
+Keeping in mind the previously-outlined limitations, Snapper 3.0 uses 64-bit hashes, with 2 bytes (i.e. hexadecimal characters) per directory level. This results in a maximum count of directory entries of 256, and 8 levels of sub-directories.
 
-With a hash space of 64-bits, a hash collision rate of 0.03% can be achieved with a number of redundant sets, |R|, of 10^{8}. The memory cost of 10^{8} redundant sets in the worst case (i.e. $p = u = \# Files = 10^{8}$) is:
+With a hash space of 64-bits, a hash collision rate of 0.03% can be achieved with a number of redundant sets, |R|, of 10^{8}. In the worst case when all payloads are unique:
 
-\[ Cost_{mem} (p = 10^{8}, \# Files = 10^{8}) = 56 \cdot 10^{8} bytes = 5.6 GB \].
+\[ Cost_{mem} (p = 10^{8}, |R| = 10^{8}) = 56 \cdot 10^{8} bytes = 5.6 GB \].
 
 This may seem as a high cost for memory, however when compared to the amount of data stored in the snapshot files it is acceptable. Assuming 4096 bytes per snapshot file, then Snapper component would be storing 4096 \cdot 10^{8} bytes (plus the 5.6 GB from above), or roughly 415 GB.
 
-The relationship for a given p (in this case p = 10^{8}) and number of files (relative to the stated p value), can be visualized as follows:
+The relationship for a given p (in this case p = 10^{8}) and number of redundant sets (relative to the stated p value), can be visualized as follows:
 
 [[./assets/mem_cost.png]]
 
